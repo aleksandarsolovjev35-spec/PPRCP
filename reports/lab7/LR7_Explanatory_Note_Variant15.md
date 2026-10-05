@@ -328,14 +328,27 @@
 ## 12. ПРИЛОЖЕНИЯ
 
 ### Приложение А. Графические макеты и диаграммы проекта
-- `diagrams/lab1/use_case_diagram.png`: Диаграмма вариантов использования (Use Case).
-- `diagrams/lab2/component_diagram.png`: Диаграмма компонентов системы.
-- `diagrams/lab2/sequence_diagram.png`: Диаграмма последовательности визирования УП.
-- `diagrams/lab2/deployment_diagram.png`: Диаграмма развертывания узлов.
-- `diagrams/lab3/template_wireframe.png`: Каркасная схема интерфейса (Wireframe).
-- `diagrams/lab4/sitemap_architecture.png`: Карта сайта и навигационная модель.
-- `diagrams/lab5/infoblock_curriculums_filled.png`: Инфоблок реестра УП.
-- `diagrams/lab6/module_chartjs_analytics.png`: Модуль аналитики Chart.js.
-- `diagrams/lab6/module_crypto_signature_stamp.png`: Модуль криптографии ЭЦП.
-- `diagrams/lab6/module_visual_diff_tracker.png`: Модуль Diff-трекера версий.
-- `diagrams/lab7/slide_01_title.png` – `slide_12_conclusion_impact.png`: 12 слайдов итоговой презентации.
+
+1. **Диаграмма вариантов использования системы (Use Case):**
+![Диаграмма вариантов использования](../../diagrams/use_case_diagram.png)
+
+2. **Диаграмма классов объектной модели (Class Diagram):**
+![Диаграмма классов системы](../../diagrams/lab2/class_diagram.png)
+
+3. **Диаграмма компонентов программного комплекса (Component Diagram):**
+![Диаграмма компонентов](../../diagrams/lab2/component_diagram.png)
+
+4. **Диаграмма последовательности сквозного процесса визирования (Sequence Diagram):**
+![Диаграмма последовательности визирования УП](../../diagrams/lab2/sequence_diagram.png)
+
+5. **Диаграмма физического развертывания узлов (Deployment Diagram):**
+![Диаграмма развертывания](../../diagrams/lab2/deployment_diagram.png)
+
+6. **Реляционная схема базы данных (ER-диаграмма):**
+![Схема базы данных](../../diagrams/lab2/db_schema_diagram.png)
+
+7. **Информационная архитектура и карта сайта (Sitemap):**
+![Информационная архитектура и карта сайта](../../diagrams/lab4/sitemap_architecture.png)
+
+8. **Архитектура интеграции готовых модулей и компонентов:**
+![Архитектура интеграции модулей](../../diagrams/lab6/module_architecture_integration.png)
