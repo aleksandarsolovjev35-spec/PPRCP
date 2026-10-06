@@ -219,17 +219,7 @@ def generate_docx(doc_type, title, discipline, variant, student, city_year, bloc
     font.color.rgb = RGBColor(0, 0, 0)
     
     # Title Page
-    p_top = doc.add_paragraph()
-    p_top.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    p_top.paragraph_format.space_before = Pt(0)
-    p_top.paragraph_format.space_after = Pt(4)
-    p_top.paragraph_format.line_spacing = 1.15
-    run = p_top.add_run("МИНИСТЕРСТВО НАУКИ И ВЫСШЕГО ОБРАЗОВАНИЯ РОССИЙСКОЙ ФЕДЕРАЦИИ\nФЕДЕРАЛЬНОЕ ГОСУДАРСТВЕННОЕ АВТОНОМНОЕ ОБРАЗОВАТЕЛЬНОЕ УЧРЕЖДЕНИЕ\nВЫСШЕГО ОБРАЗОВАНИЯ\n«НАЦИОНАЛЬНЫЙ ИССЛЕДОВАТЕЛЬСКИЙ УНИВЕРСИТЕТ»\n\nФакультет информационных технологий\nКафедра программной инженерии")
-    run.font.name = 'Times New Roman'
-    run.font.size = Pt(12)
-    run.bold = True
-    
-    for _ in range(4):
+    for _ in range(8):
         doc.add_paragraph()
         
     p_title = doc.add_paragraph()
@@ -598,8 +588,7 @@ def generate_pdf(doc_type, title, discipline, variant, student, city_year, block
     story = []
     
     # Title Page
-    story.append(Paragraph("МИНИСТЕРСТВО НАУКИ И ВЫСШЕГО ОБРАЗОВАНИЯ РОССИЙСКОЙ ФЕДЕРАЦИИ<br/>ФЕДЕРАЛЬНОЕ ГОСУДАРСТВЕННОЕ АВТОНОМНОЕ ОБРАЗОВАТЕЛЬНОЕ УЧРЕЖДЕНИЕ<br/>ВЫСШЕГО ОБРАЗОВАНИЯ<br/>«НАЦИОНАЛЬНЫЙ ИССЛЕДОВАТЕЛЬСКИЙ УНИВЕРСИТЕТ»<br/><br/>Факультет информационных технологий<br/>Кафедра программной инженерии", title_top_style))
-    story.append(Spacer(1, 40))
+    story.append(Spacer(1, 160))
     story.append(Paragraph(doc_type.upper(), title_main_style))
     story.append(Paragraph(f"по дисциплине: «{discipline}»<br/><br/><b>Тема: «{title}»</b><br/><b>{variant}</b>", title_sub_style))
     story.append(Spacer(1, 60))
