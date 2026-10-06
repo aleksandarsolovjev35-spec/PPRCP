@@ -93,7 +93,7 @@ BASE_TEMPLATE = '''<!DOCTYPE html>
                     АС
                 </div>
                 <div class="hidden md:block text-left leading-tight">
-                    <p class="text-xs font-bold text-slate-200">Соловьев А.С.</p>
+                    <p class="text-xs font-bold text-slate-200">Соловьёв А.С.</p>
                     <p class="text-[10px] text-blue-400 font-medium">Эксперт Центра АНОК</p>
                 </div>
             </div>

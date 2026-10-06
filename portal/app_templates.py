@@ -273,7 +273,7 @@ SIGNATURES_TEMPLATE = BASE_TEMPLATE.replace('{% block content %}{% endblock %}',
                     <span class="text-[10px] font-bold text-emerald-800">ЭТАП 2</span>
                 </div>
                 <h4 class="text-xs font-bold text-slate-900 mt-2">Начальник Центра АНОК</h4>
-                <p class="text-[11px] text-slate-500">Соловьев А.С.</p>
+                <p class="text-[11px] text-slate-500">Соловьёв А.С.</p>
                 <p class="text-[10px] font-mono text-emerald-700 mt-2 font-bold"><i class="fa-solid fa-signature mr-1"></i>04.10.2026 15:45 (ЭЦП)</p>
             </div>
 
