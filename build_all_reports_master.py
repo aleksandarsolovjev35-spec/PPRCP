@@ -1,5 +1,7 @@
 import os
 import re
+from xml.sax.saxutils import escape as xml_escape
+
 import docx
 from docx.shared import Inches, Pt, RGBColor, Mm
 from docx.enum.text import WD_ALIGN_PARAGRAPH
@@ -91,16 +93,121 @@ def set_table_borders(table, color="CBD5E1", sz="4", val="single"):
     )
     tblPr.append(borders)
 
+def latex_to_text(expression):
+    """Convert the small LaTeX subset used in the reports to readable Unicode.
+
+    Markdown viewers render these expressions as mathematics.  DOCX and
+    ReportLab do not, so leaving the source intact exposes strings such as
+    ``$\\le 5$`` and ``\\text{credits}`` to the reader.
+    """
+    replacements = {
+        r'\rightarrow': '→',
+        r'\leftarrow': '←',
+        r'\bowtie': '⋈',
+        r'\leq': '≤',
+        r'\le': '≤',
+        r'\geq': '≥',
+        r'\ge': '≥',
+        r'\sum': 'Σ',
+        r'\times': '×',
+        r'\pm': '±',
+    }
+    text = expression
+    # \text{...} is plain text in an exported office document.
+    text = re.sub(r'\\text\{([^{}]*)\}', r'\1', text)
+    for source, target in replacements.items():
+        text = text.replace(source, target)
+    text = text.replace(r'\,', ' ').replace(r'\ ', ' ')
+    # Do not leak unsupported command syntax into generated documents.
+    text = re.sub(r'\\([A-Za-z]+)', r'\1', text)
+    text = text.replace('{', '').replace('}', '')
+    return re.sub(r'\s+', ' ', text).strip()
+
+
 def clean_inline_md(text):
+    """Normalize inline HTML/math while retaining Markdown style markers."""
     text = text.replace('&nbsp;', ' ')
-    text = text.replace('<br>', '\n')
-    text = text.replace('<br/>', '\n')
+    text = re.sub(r'<br\s*/?>', '\n', text, flags=re.IGNORECASE)
+    # Also tolerate a typo present in an early version of the source reports.
     text = text.replace('$ightarrow$', '→')
-    text = text.replace('$\\rightarrow$', '→')
-    text = text.replace('$\\leftarrow$', '←')
-    text = text.replace('$\\le$', '≤')
-    text = text.replace('$\\ge$', '≥')
-    return text
+    return re.sub(r'\$([^$\n]+)\$', lambda m: latex_to_text(m.group(1)), text)
+
+
+def inline_md_parts(text):
+    """Yield ``(text, styles)`` tuples for bold, italic and inline code.
+
+    A small stateful parser is used instead of one regular expression because
+    report sources contain nested markup such as ``**`table_name`:**``.
+    """
+    i = 0
+    bold = False
+    italic = False
+    while i < len(text):
+        if text.startswith('**', i) and (bold or text.find('**', i + 2) != -1):
+            bold = not bold
+            i += 2
+            continue
+        if text[i] == '*' and (italic or text.find('*', i + 1) != -1):
+            italic = not italic
+            i += 1
+            continue
+        if text[i] == '`':
+            closing = text.find('`', i + 1)
+            if closing != -1:
+                styles = {'code'}
+                if bold:
+                    styles.add('bold')
+                if italic:
+                    styles.add('italic')
+                yield text[i + 1:closing], frozenset(styles)
+                i = closing + 1
+                continue
+
+        next_positions = [position for position in (
+            text.find('**', i), text.find('*', i), text.find('`', i)
+        ) if position != -1]
+        closing = min(next_positions) if next_positions else len(text)
+        if closing == i:  # unmatched marker: preserve it as ordinary text
+            closing += 1
+        styles = set()
+        if bold:
+            styles.add('bold')
+        if italic:
+            styles.add('italic')
+        yield text[i:closing], frozenset(styles)
+        i = closing
+
+
+def plain_inline_md(text):
+    return ''.join(value for value, _styles in inline_md_parts(clean_inline_md(text)))
+
+
+def add_docx_inline(paragraph, text, font_size, default_bold=False):
+    """Add inline Markdown to a Word paragraph without exposing its markers."""
+    for value, styles in inline_md_parts(clean_inline_md(text)):
+        run = paragraph.add_run(value)
+        run.font.name = 'Courier New' if 'code' in styles else 'Times New Roman'
+        run.font.size = Pt(font_size)
+        run.bold = default_bold or 'bold' in styles
+        run.italic = 'italic' in styles
+
+
+def reportlab_inline(text):
+    """Render safe ReportLab paragraph markup from inline Markdown."""
+    rendered = []
+    for value, styles in inline_md_parts(clean_inline_md(text)):
+        value = xml_escape(value).replace('\n', '<br/>')
+        # DejaVu Serif has no U+22C8; use the registered Sans face for joins.
+        value = value.replace('⋈', '<font face="DejaVuSans">⋈</font>')
+        if 'code' in styles:
+            value = f'<font face="DejaVuSansMono">{value}</font>'
+        if 'italic' in styles:
+            value = f'<i>{value}</i>'
+        if 'bold' in styles:
+            value = f'<b>{value}</b>'
+        rendered.append(value)
+    return ''.join(rendered)
+
 
 def parse_markdown_blocks(md_text, base_dir):
     lines = md_text.splitlines()
@@ -293,7 +400,7 @@ def generate_docx(doc_type, title, discipline, variant, student, city_year, bloc
             level, htext = b_content
             p_h = doc.add_paragraph()
             p_h.alignment = WD_ALIGN_PARAGRAPH.LEFT
-            clean_h = clean_inline_md(htext)
+            clean_h = plain_inline_md(htext)
             if level == 1:
                 p_h.paragraph_format.space_before = Pt(14)
                 p_h.paragraph_format.space_after = Pt(6)
@@ -324,17 +431,7 @@ def generate_docx(doc_type, title, discipline, variant, student, city_year, bloc
             p.paragraph_format.line_spacing = 1.15
             p.paragraph_format.space_after = Pt(6)
             
-            parts = re.split(r'(\*\*.*?\*\*)', text)
-            for pt in parts:
-                if pt.startswith('**') and pt.endswith('**'):
-                    r = p.add_run(pt[2:-2])
-                    r.font.name = 'Times New Roman'
-                    r.font.size = Pt(14)
-                    r.bold = True
-                else:
-                    r = p.add_run(pt)
-                    r.font.name = 'Times New Roman'
-                    r.font.size = Pt(14)
+            add_docx_inline(p, text, 14)
                     
         elif b_type == 'list_item':
             bullet, item_text, indent = b_content
@@ -351,17 +448,7 @@ def generate_docx(doc_type, title, discipline, variant, student, city_year, bloc
             r_pre.font.size = Pt(14)
             r_pre.bold = (bullet not in ['-', '*', '+'])
             
-            parts = re.split(r'(\*\*.*?\*\*)', text)
-            for pt in parts:
-                if pt.startswith('**') and pt.endswith('**'):
-                    r = p.add_run(pt[2:-2])
-                    r.font.name = 'Times New Roman'
-                    r.font.size = Pt(14)
-                    r.bold = True
-                else:
-                    r = p.add_run(pt)
-                    r.font.name = 'Times New Roman'
-                    r.font.size = Pt(14)
+            add_docx_inline(p, text, 14)
                     
         elif b_type == 'image':
             caption, img_path = b_content
@@ -382,7 +469,7 @@ def generate_docx(doc_type, title, discipline, variant, student, city_year, bloc
                 p_cap.alignment = WD_ALIGN_PARAGRAPH.CENTER
                 p_cap.paragraph_format.space_before = Pt(4)
                 p_cap.paragraph_format.space_after = Pt(12)
-                cap_text = f"Рисунок {fig_count} — {clean_inline_md(caption)}" if caption else f"Рисунок {fig_count}"
+                cap_text = f"Рисунок {fig_count} — {plain_inline_md(caption)}" if caption else f"Рисунок {fig_count}"
                 r_cap = p_cap.add_run(cap_text)
                 r_cap.font.name = 'Times New Roman'
                 r_cap.font.size = Pt(12)
@@ -424,19 +511,7 @@ def generate_docx(doc_type, title, discipline, variant, student, city_year, bloc
                             p.paragraph_format.space_after = Pt(2)
                             p.paragraph_format.line_spacing = 1.05
                             
-                            parts = re.split(r'(\*\*.*?\*\*)', cell_text)
-                            for pt in parts:
-                                if pt.startswith('**') and pt.endswith('**'):
-                                    r = p.add_run(pt[2:-2])
-                                    r.font.name = 'Times New Roman'
-                                    r.font.size = Pt(11)
-                                    r.bold = True
-                                else:
-                                    r = p.add_run(pt)
-                                    r.font.name = 'Times New Roman'
-                                    r.font.size = Pt(11)
-                                    if r_idx == 0:
-                                        r.bold = True
+                            add_docx_inline(p, cell_text, 11, default_bold=(r_idx == 0))
                                         
                 doc.add_paragraph().paragraph_format.space_after = Pt(6)
                 
@@ -589,14 +664,14 @@ def generate_pdf(doc_type, title, discipline, variant, student, city_year, block
     
     # Title Page
     story.append(Spacer(1, 160))
-    story.append(Paragraph(doc_type.upper(), title_main_style))
-    story.append(Paragraph(f"по дисциплине: «{discipline}»<br/><br/><b>Тема: «{title}»</b><br/><b>{variant}</b>", title_sub_style))
+    story.append(Paragraph(xml_escape(doc_type.upper()), title_main_style))
+    story.append(Paragraph(f"по дисциплине: «{xml_escape(discipline)}»<br/><br/><b>Тема: «{xml_escape(title)}»</b><br/><b>{xml_escape(variant)}</b>", title_sub_style))
     story.append(Spacer(1, 60))
     
-    student_fmt = student.replace('\n', '<br/>')
+    student_fmt = xml_escape(student).replace('\n', '<br/>')
     story.append(Paragraph(f"<b>Выполнил:</b><br/>{student_fmt}", title_meta_style))
     story.append(Spacer(1, 60))
-    story.append(Paragraph(city_year, title_bot_style))
+    story.append(Paragraph(xml_escape(city_year), title_bot_style))
     story.append(PageBreak())
     
     # Main Content
@@ -618,8 +693,7 @@ def generate_pdf(doc_type, title, discipline, variant, student, city_year, block
                 
         if b_type == 'heading':
             level, htext = b_content
-            clean_h = clean_inline_md(htext)
-            htext_fmt = re.sub(r'\*\*(.*?)\*\*', r'<b>\1</b>', clean_h)
+            htext_fmt = reportlab_inline(htext)
             if level == 1:
                 story.append(Paragraph(htext_fmt.upper(), h1_style))
             elif level == 2:
@@ -628,18 +702,12 @@ def generate_pdf(doc_type, title, discipline, variant, student, city_year, block
                 story.append(Paragraph(htext_fmt, h3_style))
                 
         elif b_type == 'paragraph':
-            text = clean_inline_md(b_content)
-            text_fmt = re.sub(r'\*\*(.*?)\*\*', r'<b>\1</b>', text)
-            text_fmt = re.sub(r'`(.*?)`', r'<font face="DejaVuSansMono">\1</font>', text_fmt)
-            story.append(Paragraph(text_fmt, body_style))
+            story.append(Paragraph(reportlab_inline(b_content), body_style))
             
         elif b_type == 'list_item':
             bullet, item_text, indent = b_content
-            text = clean_inline_md(item_text)
-            text_fmt = re.sub(r'\*\*(.*?)\*\*', r'<b>\1</b>', text)
-            text_fmt = re.sub(r'`(.*?)`', r'<font face="DejaVuSansMono">\1</font>', text_fmt)
             prefix = "• " if bullet in ['-', '*', '+'] else f"{bullet} "
-            story.append(Paragraph(f"<b>{prefix}</b>{text_fmt}", list_style))
+            story.append(Paragraph(f"<b>{xml_escape(prefix)}</b>{reportlab_inline(item_text)}", list_style))
             
         elif b_type == 'image':
             caption, img_path = b_content
@@ -655,7 +723,7 @@ def generate_pdf(doc_type, title, discipline, variant, student, city_year, block
                 img_w = w * scale
                 img_h = h * scale
                 
-                cap_text = f"<i>Рисунок {fig_count} — {clean_inline_md(caption)}</i>" if caption else f"<i>Рисунок {fig_count}</i>"
+                cap_text = f"<i>Рисунок {fig_count} — {reportlab_inline(caption)}</i>" if caption else f"<i>Рисунок {fig_count}</i>"
                 img_flowable = RLImage(img_path, width=img_w, height=img_h)
                 cap_flowable = Paragraph(cap_text, caption_style)
                 story.append(KeepTogether([img_flowable, cap_flowable]))
@@ -670,9 +738,7 @@ def generate_pdf(doc_type, title, discipline, variant, student, city_year, block
                 for r_idx, r in enumerate(rows):
                     row_data = []
                     for c in r:
-                        c_fmt = clean_inline_md(c)
-                        c_fmt = re.sub(r'\*\*(.*?)\*\*', r'<b>\1</b>', c_fmt)
-                        c_fmt = c_fmt.replace('<br>', '<br/>').replace('\n', '<br/>')
+                        c_fmt = reportlab_inline(c)
                         if r_idx == 0:
                             row_data.append(Paragraph(c_fmt, table_head_style))
                         else:
@@ -800,32 +866,37 @@ DOCUMENTS = [
     }
 ]
 
-print("Starting regeneration of all 8 standardized documents (without supervisor block)...")
-for idx, doc_meta in enumerate(DOCUMENTS):
-    print(f"\n[{idx+1}/8] Processing: {doc_meta['md']}")
-    with open(doc_meta['md'], 'r', encoding='utf-8') as f:
-        md_text = f.read()
-    blocks = parse_markdown_blocks(md_text, doc_meta['dir'])
-    print(f"  Parsed {len(blocks)} content blocks.")
-    generate_docx(
-        doc_type=doc_meta['doc_type'],
-        title=doc_meta['title'],
-        discipline=doc_meta['discipline'],
-        variant=doc_meta['variant'],
-        student=doc_meta['student'],
-        city_year=doc_meta['city_year'],
-        blocks=blocks,
-        output_path=doc_meta['docx']
-    )
-    generate_pdf(
-        doc_type=doc_meta['doc_type'],
-        title=doc_meta['title'],
-        discipline=doc_meta['discipline'],
-        variant=doc_meta['variant'],
-        student=doc_meta['student'],
-        city_year=doc_meta['city_year'],
-        blocks=blocks,
-        output_path=doc_meta['pdf']
-    )
+def main():
+    print("Starting regeneration of all 8 standardized documents (without supervisor block)...")
+    for idx, doc_meta in enumerate(DOCUMENTS):
+        print(f"\n[{idx+1}/8] Processing: {doc_meta['md']}")
+        with open(doc_meta['md'], 'r', encoding='utf-8') as f:
+            md_text = f.read()
+        blocks = parse_markdown_blocks(md_text, doc_meta['dir'])
+        print(f"  Parsed {len(blocks)} content blocks.")
+        generate_docx(
+            doc_type=doc_meta['doc_type'],
+            title=doc_meta['title'],
+            discipline=doc_meta['discipline'],
+            variant=doc_meta['variant'],
+            student=doc_meta['student'],
+            city_year=doc_meta['city_year'],
+            blocks=blocks,
+            output_path=doc_meta['docx']
+        )
+        generate_pdf(
+            doc_type=doc_meta['doc_type'],
+            title=doc_meta['title'],
+            discipline=doc_meta['discipline'],
+            variant=doc_meta['variant'],
+            student=doc_meta['student'],
+            city_year=doc_meta['city_year'],
+            blocks=blocks,
+            output_path=doc_meta['pdf']
+        )
 
-print("\nAll 8 standardized DOCX and PDF documents regenerated successfully without supervisor block!")
+    print("\nAll 8 standardized DOCX and PDF documents regenerated successfully without supervisor block!")
+
+
+if __name__ == '__main__':
+    main()
