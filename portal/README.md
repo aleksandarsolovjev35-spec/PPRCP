@@ -1,6 +1,20 @@
-# Портал АНОК на PHP и MySQL/MariaDB
+# Портал АНОК
 
-## Запуск
+Информационная система Центра аккредитации и независимой оценки качества (АНОК) для автоматизированной настройки и валидации образовательного контента и учебных планов.
+
+## Быстрый запуск (Python / встроенный SQLite)
+
+База данных SQLite автоматически инициализируется из `database/schema.sql` и `database/seed.sql` при первом запуске:
+
+```bash
+python3 server.py
+# или
+python3 portal/server.py
+```
+
+Портал будет доступен по адресу `http://localhost:8000` (или `http://0.0.0.0:8000`).
+
+## Запуск на PHP и MySQL/MariaDB
 
 Создать базу и пользователя MySQL/MariaDB, затем выполнить:
 
@@ -13,5 +27,5 @@ mysql -u root -p anok_portal < database/seed.sql
 Настроить переменные `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD` и запустить встроенный сервер:
 
 ```bash
-php -S 127.0.0.1:8000 -t portal_php
+php -S 0.0.0.0:8000 -t portal
 ```
