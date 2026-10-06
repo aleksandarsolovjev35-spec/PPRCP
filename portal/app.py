@@ -1,12 +1,14 @@
 import sqlite3
 import hashlib
 import datetime
+from pathlib import Path
 from flask import Flask, render_template_string, request, redirect, url_for, jsonify, flash
 
 app = Flask(__name__)
 app.secret_key = 'anok_university_portal_secret_key_2026'
 
-DB_PATH = '/home/user/PPRCP/portal/anok_portal.db'
+BASE_DIR = Path(__file__).resolve().parent
+DB_PATH = BASE_DIR / 'anok_portal.db'
 
 def get_db():
     conn = sqlite3.connect(DB_PATH)
