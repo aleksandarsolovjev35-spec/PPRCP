@@ -91,6 +91,7 @@ def init_database():
 def get_db():
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA foreign_keys = ON")
     return conn
 
 
@@ -158,7 +159,7 @@ def validate_curriculum(db, plan_id=1):
             practice += credits
         elif block.startswith('Б3'):
             gia += credits
-        if 'кзамен' in (r['control_form'] or ''):
+        if (r['control_form'] or '').startswith('Экзамен'):
             exams_per_semester[sem] = exams_per_semester.get(sem, 0) + 1
 
     std = db.execute('SELECT * FROM standards_fgos ORDER BY id LIMIT 1').fetchone()
@@ -655,6 +656,17 @@ def render_html_page(title, active_page, content, stats, head_extra='', body_ext
       table {{ font-size: 12px; }}
       th, td {{ padding: 8px 10px; }}
     }}
+    .site-footer {{
+      background: #0f172a;
+      color: #94a3b8;
+      padding: 12px 28px;
+      display: flex;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 8px;
+      font-size: 12px;
+      border-top: 1px solid #1e293b;
+    }}
   </style>
   {head_extra}
 </head>
@@ -686,6 +698,10 @@ def render_html_page(title, active_page, content, stats, head_extra='', body_ext
       {content}
     </section>
   </main>
+  <footer class="site-footer">
+    <span>© 2026 Центр АНОК · Корпоративный портал университета · Версия 2.4.0</span>
+    <span>Синхронизация с БД: OK · Регламент ФГОС ВО 3++ · helpdesk@univ.ru</span>
+  </footer>
   <script>
     function filterTable(inputId, tableId) {{
       const input = document.getElementById(inputId);
@@ -1334,8 +1350,9 @@ document.addEventListener('DOMContentLoaded', function() {{
 
                 sig_payloads = json.dumps(
                     [{'step': sg['step_order'], 'signer': sg['signer_name'],
-                      'payload': f"CURRICULUM:1|step:{sg['step_order']}|user:{sg['signer_name']}|ts:{sg['signed_at']}"}
-                     for sg in sigs[:2]], ensure_ascii=False)
+                      'payload': f"CURRICULUM:1|step:{sg['step_order']}|user:{sg['signer_name']}|ts:{sg['signed_at']}",
+                      'stored': (sg['sign_hash'] or '').replace('SHA256:', '')}
+                     for sg in sigs], ensure_ascii=False)
                 content += f'''
                 <div class="table-container" style="padding:24px; margin-top:24px;">
                   <h2 style="margin-top:0;">Модуль криптографии и верификации ЭЦП (CryptoJS / SHA-256)</h2>
@@ -1372,24 +1389,33 @@ function renderStamps() {{
   wrap.innerHTML = SIG_PAYLOADS.map(function(s) {{
     const hash = (typeof CryptoJS !== 'undefined')
       ? CryptoJS.SHA256(s.payload).toString() : 'SHA-256 недоступен (оффлайн-режим)';
+    const match = (typeof CryptoJS !== 'undefined') && (hash === s.stored);
     return '<div style="background:#fff; border:1px solid var(--border); border-radius:8px; padding:16px;">' +
       '<div style="display:flex; align-items:center; gap:12px; margin-bottom:10px;">' +
       '<div style="width:40px;height:40px;border-radius:50%;background:#2563eb;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;">РФ</div>' +
       '<div><div style="font-weight:600;">ДОКУМЕНТ ПОДПИСАН ЭЛЕКТРОННОЙ ПОДПИСЬЮ</div>' +
       '<div style="font-size:12px; color:#64748b;">Этап ' + s.step + ' · ' + s.signer + '</div></div></div>' +
-      '<div style="font-family:monospace; font-size:11px; color:#475569; word-break:break-all;">SHA-256: ' + hash + '</div></div>';
+      '<div style="font-family:monospace; font-size:11px; color:#475569; word-break:break-all;">SHA-256 (хранилище): ' + s.stored + '</div>' +
+      '<div style="font-family:monospace; font-size:11px; color:' + (match ? '#15803d' : '#b91c1c') + '; word-break:break-all;">SHA-256 (пересчет): ' + hash + (match ? ' · [MATCH]' : ' · [MISMATCH]') + '</div></div>';
   }}).join('');
 }}
 function verifyStamps() {{
   const box = document.getElementById('verifyResult');
-  const ok = typeof CryptoJS !== 'undefined';
-  box.innerHTML = ok
-    ? '<div style="background:#dcfce7; border:1px solid #16a34a; border-radius:6px; padding:14px 16px; color:#15803d; font-weight:600;">[OK] СТАТУС ВЕРИФИКАЦИИ ЭЦП: ВСЕ ПОДПИСИ ДЕЙСТВИТЕЛЬНЫ. Проверка цепочки сертификатов выполнена успешно.</div>'
-    : '<div style="background:#fef3c7; border:1px solid #d97706; border-radius:6px; padding:14px 16px; color:#b45309;">Модуль CryptoJS не загружен (оффлайн-режим демонстрации).</div>';
-  if (ok) {{ renderStamps(); }}
+  if (typeof CryptoJS === 'undefined') {{
+    box.innerHTML = '<div style="background:#fef3c7; border:1px solid #d97706; border-radius:6px; padding:14px 16px; color:#b45309;">Модуль CryptoJS не загружен (оффлайн-режим демонстрации).</div>';
+    return;
+  }}
+  const results = SIG_PAYLOADS.map(function(s) {{
+    return {{ step: s.step, ok: CryptoJS.SHA256(s.payload).toString() === s.stored }};
+  }});
+  const allOk = results.every(function(r) {{ return r.ok; }});
+  renderStamps();
+  box.innerHTML = allOk
+    ? '<div style="background:#dcfce7; border:1px solid #16a34a; border-radius:6px; padding:14px 16px; color:#15803d; font-weight:600;">[OK] СТАТУС ВЕРИФИКАЦИИ ЭЦП: ВСЕ ПОДПИСИ ДЕЙСТВИТЕЛЬНЫ. Пересчитанные SHA-256 совпадают с хэшами, сохраненными в БД (' + results.length + ' из ' + results.length + ').</div>'
+    : '<div style="background:#fee2e2; border:1px solid #b91c1c; border-radius:6px; padding:14px 16px; color:#b91c1c; font-weight:600;">[ERROR] Обнаружено несовпадение контрольных сумм: цепочка подписей нарушена.</div>';
   if (typeof Toastify !== 'undefined') {{
-    Toastify({{ text: 'Проверка ЭЦП выполнена: ' + SIG_PAYLOADS.length + ' подписи', duration: 3000,
-      style: {{ background: '#16a34a' }} }}).showToast();
+    Toastify({{ text: 'Проверка ЭЦП выполнена: ' + results.filter(function(r) {{ return r.ok; }}).length + ' из ' + results.length + ' подписей действительны', duration: 3000,
+      style: {{ background: allOk ? '#16a34a' : '#dc2626' }} }}).showToast();
   }}
 }}
 function confirmSign() {{
