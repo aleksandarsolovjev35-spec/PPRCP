@@ -228,13 +228,24 @@ def new_slide(num):
     return im, d
 
 
+HEAD_TOP, HEAD_RULE = 8, 130          # header band: below the top bar, above the blue rule
+
+
 def head(d, title, sub):
+    """Header block (title + subtitle) and the right badge are centred between the two blue lines."""
+    mid = (HEAD_TOP + HEAD_RULE) / 2
     bw, bx = 460, W - MARGIN - 460
-    T(d, MARGIN, 50, title, fit_font(title, bx - GUT - MARGIN, 34, True), TXT, bx - GUT - MARGIN)
-    T(d, MARGIN, 100, sub, fit_font(sub, bx - GUT - MARGIN, 18), MUT, bx - GUT - MARGIN)
-    d.rounded_rectangle([bx, 50, W - MARGIN, 110], 10, fill=PANEL)
-    T(d, bx + 20, 80, 'ПРКП · Вариант 15 · Центр АНОК', F(16), MUT, bw - 40, anchor='lm')
-    d.rectangle([0, 130, W, 136], fill=ACC)
+    maxw = bx - GUT - MARGIN
+    tf, sf = fit_font(title, maxw, 34, True), fit_font(sub, maxw, 18)
+    gap = 10
+    block = tf.size + gap + sf.size
+    top = mid - block / 2
+    T(d, MARGIN, top + tf.size / 2, title, tf, TXT, maxw, anchor='lm')
+    T(d, MARGIN, top + tf.size + gap + sf.size / 2, sub, sf, MUT, maxw, anchor='lm')
+    bh = 56
+    d.rounded_rectangle([bx, mid - bh / 2, W - MARGIN, mid + bh / 2], 10, fill=PANEL)
+    T(d, bx + 20, mid, 'ПРКП · Вариант 15 · Центр АНОК', F(16), MUT, bw - 40, anchor='lm')
+    d.rectangle([0, HEAD_RULE, W, HEAD_RULE + 6], fill=ACC)
 
 
 def render(num, title, sub, body, filename):
