@@ -12,54 +12,267 @@ OUT=f'{ROOT}/diagrams'
 def tx(d,x,y,s,sz=13,b=False,c=INK): d.text((x,y),s,font=F(sz,b),fill=c)
 
 # ---------------------------------------------------------------- use case
+#
+# Layout: 5 subsystem bands.  Each band stacks its use cases in one central
+# column inside the system boundary; the actor chips live in the outer
+# gutters next to the rows they actually connect to.  Every association is
+# a single straight segment fanned out from one anchor point on the chip to
+# its own entry slot on the ellipse border, which makes crossings
+# geometrically impossible for this data set -- and the collision checker
+# below asserts it (crossings, line-vs-shape touches, label overlaps) and
+# refuses to save if anything is off.
+import math, textwrap
+
+ACT={ # key: (name, code, color, tint, outline)
+ 'HR':('Руководитель выпускающего подразделения','HEAD_RELEASING',BLUE,'#eff6ff','#bfdbfe'),
+ 'HI':('Руководитель реализующего подразделения','HEAD_IMPLEMENTING',BLUE,'#eff6ff','#bfdbfe'),
+ 'V' :('Преподаватель / Студент','VIEWER',BLUE,'#eff6ff','#bfdbfe'),
+ 'CS':('Секретарь Учёного совета','COUNCIL_SEC','#0f766e','#f0fdfa','#99f6e4'),
+ 'VR':('Проректор по учебной работе','VICE_RECTOR','#0f766e','#f0fdfa','#99f6e4'),
+ 'RE':('Ректор университета','RECTOR','#0f766e','#f0fdfa','#99f6e4'),
+ 'E' :('Эксперт Центра АНОК','EXPERT_ANOK','#7c3aed','#f5f3ff','#ddd6fe'),
+ 'HA':('Начальник Центра АНОК','HEAD_ANOK','#7c3aed','#f5f3ff','#ddd6fe'),
+ 'A' :('Администратор портала','ADMIN','#7c3aed','#f5f3ff','#ddd6fe'),
+}
+# band: (title, [ (use case caption, [ (actor, side, association label), ... ]), ... ])
+BANDS=[
+ ('БЛОК 1 · УЧЕБНЫЕ ПЛАНЫ: ПРОСМОТР И АНАЛИЗ',[
+   ('UC-1 Просмотр реестра УП',[('V','L','просмотр'),('HR','L','просмотр')]),
+   ('UC-2 Просмотр УП по семестрам (1–8)',[('V','L','навигация по семестрам')]),
+   ('UC-3 Анализ нагрузки и СРС',[('V','L','оценка нагрузки'),('E','R','экспертиза нагрузки')]),
+ ]),
+ ('БЛОК 2 · ЭКСПЕРТИЗА НА СООТВЕТСТВИЕ ФГОС ВО 3++',[
+   ('UC-4 Автоматическая валидация УП',[('E','R','запуск валидации'),('HA','L','проверка итогов')]),
+   ('UC-5 Контроль лимита экзаменов (≤ 5)',[('E','R','контроль лимита')]),
+   ('UC-6 Протокол замечаний',[('E','R','фиксация замечаний'),('HA','L','утверждение протокола')]),
+ ]),
+ ('БЛОК 3 · СОГЛАСОВАНИЕ И ПОДПИСАНИЕ ЭЦП',[
+   ('UC-7 Наложение визы ЭЦП',[('HR','L','виза кафедры'),('HA','R','виза АНОК'),('VR','R','согласование'),('RE','R','виза ректора')]),
+   ('UC-8 Просмотр цепочки подписания и SHA-256',[('V','L','просмотр статуса'),('HR','L','контроль подписания')]),
+   ('UC-9 Утверждение протокола Учёного совета',[('CS','L','регистрация протокола'),('RE','R','утверждение')]),
+ ]),
+ ('БЛОК 4 · СЛУЖЕБНЫЕ ЗАПИСКИ (КОРРЕКТИРОВКА УП)',[
+   ('UC-10 Создание СЗ на изменение УП',[('HR','L','создание СЗ')]),
+   ('UC-11 Сравнение версий «Было → Стало»',[('HR','L','анализ диффа'),('HI','L','сверка часов')]),
+   ('UC-12 Согласование обеспечивающей кафедрой',[('HI','L','согласование')]),
+   ('UC-13 Применение правок в УП',[('E','R','применение правок')]),
+ ]),
+ ('БЛОК 5 · СПРАВОЧНИКИ И АДМИНИСТРИРОВАНИЕ',[
+   ('UC-14 Матрица компетенций (УК/ОПК/ПК)',[('V','L','просмотр матрицы')]),
+   ('UC-15 Справочник подразделений и контактов',[('V','L','поиск контактов'),('A','R','ведение справочника')]),
+   ('UC-16 Лента регламентов и объявлений',[('V','L','чтение ленты'),('HA','L','публикация')]),
+   ('UC-17 Журнал аудита действий',[('A','R','мониторинг')]),
+ ]),
+]
+
+def _uc_seg_int(p1,p2,p3,p4,eps=0.0):
+    def o(a,b,c):
+        v=(b[0]-a[0])*(c[1]-a[1])-(b[1]-a[1])*(c[0]-a[0])
+        return 0 if abs(v)<=eps else (1 if v>0 else -1)
+    o1,o2,o3,o4=o(p1,p2,p3),o(p1,p2,p4),o(p3,p4,p1),o(p3,p4,p2)
+    return o1!=o2 and o3!=o4
+
+def _uc_trim(p,q,by):
+    dx,dy=q[0]-p[0],q[1]-p[1]; L=math.hypot(dx,dy) or 1
+    ux,uy=dx/L,dy/L
+    return (p[0]+ux*by,p[1]+uy*by),(q[0]-ux*by,q[1]-uy*by)
+
+def _uc_rect_seg(r,p,q):
+    (x0,y0,x1,y1)=r
+    if x0<=p[0]<=x1 and y0<=p[1]<=y1: return True
+    if x0<=q[0]<=x1 and y0<=q[1]<=y1: return True
+    e=[((x0,y0),(x1,y0)),((x1,y0),(x1,y1)),((x1,y1),(x0,y1)),((x0,y1),(x0,y0))]
+    return any(_uc_seg_int(p,q,a,b) for a,b in e)
+
+def _uc_rect_rect(a,b,pad=0):
+    return not (a[2]+pad<=b[0] or b[2]+pad<=a[0] or a[3]+pad<=b[1] or b[3]+pad<=a[1])
+
+def _uc_seg_ellipse_hit(s0,s1,c,rx,ry,margin=0.02):
+    p=((s0[0]-c[0])/rx,(s0[1]-c[1])/ry); q=((s1[0]-c[0])/rx,(s1[1]-c[1])/ry)
+    dx,dy=q[0]-p[0],q[1]-p[1]
+    L2=dx*dx+dy*dy
+    t=0.0 if L2==0 else max(0.0,min(1.0,-(p[0]*dx+p[1]*dy)/L2))
+    cx,cy=p[0]+t*dx,p[1]+t*dy
+    return math.hypot(cx,cy)<1-margin
+
+def _uc_rect_ellipse_hit(r,c,rx,ry,pad=1.01):
+    x0,y0,x1,y1=[(v-c[i%2])/([rx,ry,rx,ry][i]) for i,v in enumerate(r)]
+    cx=max(x0,min(0,x1)); cy=max(y0,min(0,y1))
+    return math.hypot(cx,cy)<pad
+
 def use_case():
-    W,Hh=2200,2160; im=Image.new('RGB',(W,Hh),BG); d=ImageDraw.Draw(im)
-    tx(d,60,30,'Диаграмма вариантов использования — портал Центра АНОК',22,True)
-    d.rounded_rectangle([430,90,W-430,Hh-40],16,outline=BLUE,width=2)
-    tx(d,760,104,'ГРАНИЦА СИСТЕМЫ: КОРПОРАТИВНЫЙ ПОРТАЛ УНИВЕРСИТЕТА (МОДУЛЬ АНОК)',13,True,BLUE)
-    actorsL=[('Руководитель выпускающего\nподразделения (HEAD_RELEASING)',180),('Руководитель реализующего\nподразделения (HEAD_IMPLEMENTING)',480),
-             ('Секретарь Ученого совета\n(COUNCIL_SEC)',900),('Преподаватель / Студент\n(VIEWER)',1300)]
-    actorsR=[('Эксперт Центра АНОК\n(EXPERT_ANOK)',180),('Начальник Центра АНОК\n(HEAD_ANOK)',480),('Проректор по учебной работе\n(VICE_RECTOR)',780),
-             ('Ректор университета\n(RECTOR)',1080),('Администратор портала\n(ADMIN)',1500)]
-    apos={}
-    for name,y in actorsL:
-        d.rounded_rectangle([40,y,W and 380,y+110],10,fill='#eff6ff',outline='#bfdbfe')
-        d.ellipse([70,y+30,110,y+70],fill=BLUE)
-        for i,ln in enumerate(name.split('\n')): tx(d,125,y+28+i*22,ln,12,i==0)
-        apos[name.split('\n')[0]]= (380,y+55,'L')
-    for name,y in actorsR:
-        d.rounded_rectangle([W-380,y,W-40,y+110],10,fill='#f5f3ff',outline='#ddd6fe')
-        d.ellipse([W-110,y+30,W-70,y+70],fill='#7c3aed')
-        for i,ln in enumerate(name.split('\n')): tx(d,W-360,y+28+i*22,ln,12,i==0)
-        apos[name.split('\n')[0]]=(W-380,y+55,'R')
-    groups=[('БЛОК 1: УЧЕБНЫЕ ПЛАНЫ',[('UC-1 Просмотр реестра УП',['VIEWER','HEAD_RELEASING']),
-        ('UC-2 Просмотр УП по семестрам (1–8)',['VIEWER']),('UC-3 Анализ нагрузки и СРС',['VIEWER','EXPERT_ANOK'])]),
-      ('БЛОК 2: ЭКСПЕРТИЗА ФГОС 3++',[('UC-4 Автоматическая валидация УП',['EXPERT_ANOK','HEAD_ANOK']),
-        ('UC-5 Контроль лимита экзаменов (≤ 5)',['EXPERT_ANOK']),('UC-6 Протокол замечаний',['EXPERT_ANOK','HEAD_ANOK'])]),
-      ('БЛОК 3: СОГЛАСОВАНИЕ И ЭЦП',[('UC-7 Наложение визы ЭЦП',['HEAD_RELEASING','HEAD_ANOK','VICE_RECTOR','RECTOR']),
-        ('UC-8 Просмотр цепочки подписания и SHA-256',['VIEWER','HEAD_RELEASING']),('UC-9 Утверждение протокола УС',['COUNCIL_SEC','RECTOR'])]),
-      ('БЛОК 4: СЛУЖЕБНЫЕ ЗАПИСКИ',[('UC-10 Создание СЗ на изменение УП',['HEAD_RELEASING']),
-        ('UC-11 Сравнение версий «Было → Стало»',['HEAD_RELEASING','HEAD_IMPLEMENTING']),
-        ('UC-12 Согласование обеспечивающей кафедрой',['HEAD_IMPLEMENTING']),('UC-13 Применение правок в УП',['EXPERT_ANOK'])]),
-      ('БЛОК 5: СПРАВОЧНИКИ И АДМИНИСТРИРОВАНИЕ',[('UC-14 Матрица компетенций (УК/ОПК/ПК)',['VIEWER']),
-        ('UC-15 Справочник подразделений и контактов',['VIEWER','ADMIN']),('UC-16 Лента регламентов и объявлений',['VIEWER','HEAD_ANOK']),
-        ('UC-17 Журнал аудита действий',['ADMIN'])])]
-    keymap={'VIEWER':'Преподаватель / Студент','HEAD_RELEASING':'Руководитель выпускающего','HEAD_IMPLEMENTING':'Руководитель реализующего',
-      'COUNCIL_SEC':'Секретарь Ученого совета','EXPERT_ANOK':'Эксперт Центра АНОК','HEAD_ANOK':'Начальник Центра АНОК','VICE_RECTOR':'Проректор по учебной работе',
-      'RECTOR':'Ректор университета','ADMIN':'Администратор портала'}
-    y=150
-    for gname,ucs in groups:
-        d.rounded_rectangle([470,y,W-470,y+34],6,fill='#e2e8f0')
-        tx(d,900,y+8,gname,12,True,'#334155'); y+=44
-        for uc,acs in ucs:
-            ecx=1100; ecy=y+42
-            d.ellipse([ecx-230,ecy-36,ecx+230,ecy+36],fill='#ffffff',outline=BLUE,width=2)
-            tx(d,ecx-d.textlength(uc,font=F(13,True))/2,ecy-9,uc,13,True)
-            for a in acs:
-                ax,ay,side=apos[keymap[a]]
-                d.line([(ax,ay),(ecx-230 if side=='L' else ecx+230,ecy)],fill='#94a3b8',width=1)
-            y+=92
-        y+=18
+    W=1960; MX=60
+    CHIP_W=420; CHIP_X={'L':(MX,MX+CHIP_W),'R':(W-MX-CHIP_W,W-MX)}
+    ANCH_X={'L':MX+CHIP_W,'R':W-MX-CHIP_W}
+    ECX=980; RX=170; RY=34; ROW=100; HDR=44; PADB=24
+    BAND_X0=740; BAND_X1=1220
+    BND_X0=700; BND_X1=1260
+    TOP=104; GAP=30
+    LINEC='#64748b'
+
+    # ---- layout: band boxes, use-case rows, actor chips ----
+    bands=[]; y=TOP
+    for btitle,rows in BANDS:
+        n=len(rows)
+        bh=HDR+n*ROW+PADB
+        band={'title':btitle,'top':y,'bot':y+bh,'rows':[],'cy':{}}
+        for i,(cap,edges) in enumerate(rows):
+            cyy=y+HDR+ROW//2+i*ROW
+            band['cy'][i]=cyy
+            band['rows'].append({'cap':cap,'edges':list(edges),'cx':ECX,'cy':cyy,'idx':i})
+        for side in ('L','R'):
+            per={}
+            for r in band['rows']:
+                for (a,s,lab) in r['edges']:
+                    if s==side: per.setdefault(a,[]).append(r['cy'])
+            items=sorted(per.items(),key=lambda kv:sum(kv[1])/len(kv[1]))
+            ys=[sum(v)/len(v) for _,v in items]
+            lo,hi=y+HDR//2+18,y+bh-PADB//2-18
+            for i in range(len(ys)):
+                ys[i]=max(min(ys[i],hi),lo)
+                if i>0 and ys[i]-ys[i-1]<96: ys[i]=ys[i-1]+96
+            for k in range(len(ys)-2,-1,-1):
+                if ys[k+1]-ys[k]<96: ys[k]=ys[k+1]-96
+            band['chips_'+side]=[(a,ys[i]) for i,(a,_) in enumerate(items)]
+        bands.append(band)
+        y+=bh+GAP
+    BND_BOT=y-GAP+20
+    Hh=BND_BOT+86
+
+    d_=ImageDraw.Draw(Image.new('RGB',(10,10)))
+    for band in bands:
+        for side in ('L','R'):
+            x0,x1=CHIP_X[side]
+            for j,(a,cyy) in enumerate(band['chips_'+side]):
+                name=ACT[a][0]; code=ACT[a][1]
+                lines=textwrap.wrap(name,40)
+                h=10+len(lines)*19+15
+                band['chips_'+side][j]=(a,cyy,(x0,cyy-h/2,x1,cyy+h/2),lines,code)
+
+    # ---- anchors, entry slots ----
+    anchors={}; ellipses=[]; chiprects=[]; headrects=[]
+    for bi,band in enumerate(bands):
+        hw=max(d_.textlength(band['title'],font=F(12,True))+36,240)
+        headrects.append((ECX-hw/2,band['top']+6,ECX+hw/2,band['top']+32))
+        for r in band['rows']:
+            ellipses.append((r['cx'],r['cy'],r['idx'],bi))
+        for side in ('L','R'):
+            for (a,cyy,rect,lines,code) in band['chips_'+side]:
+                chiprects.append(rect)
+                anchors[(bi,a,side)]=(ANCH_X[side],cyy)
+        for r in band['rows']:
+            for side in ('L','R'):
+                es=[(a,lab) for (a,s,lab) in r['edges'] if s==side]
+                es.sort(key=lambda al: anchors[(bi,al[0],side)][1])
+                m=len(es)
+                sp=min(22,(2*(RY-8))/max(m-1,1)) if m>1 else 0
+                for j,(a,lab) in enumerate(es):
+                    ey=r['cy']+(j-(m-1)/2)*sp
+                    ox=math.sqrt(max(0.0,1-((ey-r['cy'])/RY)**2))
+                    ex=r['cx']-RX*ox if side=='L' else r['cx']+RX*ox
+                    r.setdefault('entry',{})[a]=(ex,ey,side)
+    segs=[]
+    for bi,band in enumerate(bands):
+        for r in band['rows']:
+            for (a,s,lab) in r['edges']:
+                p=anchors[(bi,a,s)]; q=r['entry'][a]
+                segs.append((p,q[:2],bi,s,r['idx'],a,lab,None))
+
+    # ---- collision checker: no crossings, no touches, labels in free space ----
+    problems=[]
+    T=[_uc_trim(p,q,12) for (p,q,bi,s,ri,a,lab,_x) in segs]
+    for i in range(len(segs)):
+        for j in range(i+1,len(segs)):
+            (p1,q1),(p2,q2)=T[i],T[j]
+            if _uc_seg_int(p1,q1,p2,q2,eps=.5): problems.append(('X-seg',i,j))
+    for i,(p,q,bi,s,ri,a,lab,_x) in enumerate(segs):
+        p2,q2=T[i]
+        for (ex,ey,ei,ej) in ellipses:
+            if ej==bi and ei==ri: continue
+            if _uc_seg_ellipse_hit(p2,q2,(ex,ey),RX,RY,margin=-0.01): problems.append(('seg-ell',i,(ex,ey,ei,ej)))
+        for k,rect in enumerate(chiprects):
+            if _uc_rect_seg(rect,p2,q2): problems.append(('seg-chip',i,k))
+        for hr in headrects:
+            if _uc_rect_seg(hr,p2,q2): problems.append(('seg-head',i,hr))
+    labrects=[]
+    for i,(p,q,bi,s,ri,a,lab,_x) in enumerate(segs):
+        band=bands[bi]
+        w=d_.textlength(lab,font=F(11))+14; h=24
+        lo,hi=((MX+6,BND_X0-6) if s=='L' else (BND_X1+6,W-MX-6))
+        best=None; mx,my=p
+        for t in (0.5,0.42,0.58,0.34,0.66,0.26,0.74):
+            mx,my=p[0]+(q[0]-p[0])*t,p[1]+(q[1]-p[1])*t
+            dx,dy=q[0]-p[0],q[1]-p[1]; L=math.hypot(dx,dy) or 1
+            nx,ny=-dy/L,dx/L
+            for off in (0,22,-22,40,-40,60,-60,84,-84):
+                cx2,cy2=mx+nx*off,my+ny*off
+                cx2=min(max(cx2,lo+w/2),hi-w/2)
+                r=(cx2-w/2,cy2-h/2,cx2+w/2,cy2+h/2)
+                if r[1]<band['top']+4 or r[3]>band['bot']-4: continue
+                ok=True
+                for (ex2,ey2,ei,ej) in ellipses:
+                    if _uc_rect_ellipse_hit(r,(ex2,ey2),RX,RY,pad=1.06): ok=False;break
+                if ok:
+                    for rect in chiprects+headrects:
+                        if _uc_rect_rect(r,rect,6): ok=False;break
+                if ok:
+                    for rr in labrects:
+                        if _uc_rect_rect(r,rr,4): ok=False;break
+                if ok:
+                    for j,(t3,t4) in enumerate(T):
+                        if j==i: continue
+                        if _uc_rect_seg(r,t3,t4): ok=False;break
+                if ok: best=r;break
+            if best: break
+        if not best:
+            best=(mx-w/2,my-12,mx+w/2,my+12); problems.append(('label',i,lab))
+        labrects.append(best)
+        segs[i]=(p,q,bi,s,ri,a,lab,best)
+    if problems:
+        raise RuntimeError(f'use case layout problems: {problems[:12]}')
+
+    # ---- render ----
+    im=Image.new('RGB',(W,Hh),BG); d=ImageDraw.Draw(im)
+    tx(d,MX,26,'Диаграмма вариантов использования — портал Центра АНОК',22,True)
+    tx(d,MX,60,'9 акторов · 17 прецедентов · 5 подсистем — каждая ассоциация подписана действием роли',13,False,MUT)
+    d.rounded_rectangle([BND_X0,TOP-30,BND_X1,BND_BOT],14,outline=BLUE,width=2)
+    cap='ГРАНИЦА СИСТЕМЫ: КОРПОРАТИВНЫЙ ПОРТАЛ УНИВЕРСИТЕТА (МОДУЛЬ АНОК)'
+    d.text(((BND_X0+BND_X1)/2-d.textlength(cap,font=F(12,True))/2,TOP-24),cap,font=F(12,True),fill=BLUE)
+    for band in bands:
+        d.rounded_rectangle([BAND_X0,band['top'],BAND_X1,band['bot']],10,outline='#cbd5e1',width=1)
+        hw=max(d.textlength(band['title'],font=F(12,True))+36,240)
+        d.rounded_rectangle([ECX-hw/2,band['top']+6,ECX+hw/2,band['top']+32],6,fill='#e2e8f0')
+        d.text((ECX-d.textlength(band['title'],font=F(12,True))/2,band['top']+11),band['title'],font=F(12,True),fill='#334155')
+    for (p,q,bi,s,ri,a,lab,lr) in segs:
+        d.line([p,q],fill=LINEC,width=2)
+        d.ellipse([q[0]-4,q[1]-4,q[0]+4,q[1]+4],fill=ACT[a][2])
+    for band in bands:
+        for r in band['rows']:
+            d.ellipse([r['cx']-RX,r['cy']-RY,r['cx']+RX,r['cy']+RY],fill='#ffffff',outline=BLUE,width=2)
+            d.text((r['cx']-d.textlength(r['cap'],font=F(12,True))/2,r['cy']-8),r['cap'],font=F(12,True),fill=INK)
+    for band in bands:
+        for side in ('L','R'):
+            for (a,cyy,rect,lines,code) in band['chips_'+side]:
+                name,code,color,tint,ol=ACT[a]
+                d.rounded_rectangle(rect,10,fill=tint,outline=ol,width=2)
+                x0,y0,x1,y1=rect
+                for k,ln in enumerate(lines):
+                    tx(d,x0+16,y0+9+k*19,ln,12,k==0)
+                tx(d,x0+16,y1-22,code,10,False,color)
+                dotx=rect[2] if side=='L' else rect[0]
+                d.ellipse([dotx-5,cyy-5,dotx+5,cyy+5],fill=color)
+    for (p,q,bi,s,ri,a,lab,lr) in segs:
+        x0,y0,x1,y1=lr
+        d.rounded_rectangle(lr,7,fill='#ffffff',outline=BORDER,width=1)
+        d.text(((x0+x1)/2-d.textlength(lab,font=F(11))/2,(y0+y1)/2-7),lab,font=F(11),fill='#334155')
+    ly=Hh-52
+    tx(d,MX,ly,'Обозначения:',12,True,MUT)
+    d.line([(MX+118,ly+8),(MX+168,ly+8)],fill=LINEC,width=2)
+    tx(d,MX+176,ly,'ассоциация «актор → прецедент», подпись — действие роли',12,False,MUT)
+    for i,(nm,col) in enumerate([('роль университета',BLUE),('роль Центра АНОК','#7c3aed'),('руководство университета','#0f766e')]):
+        d.ellipse([MX+i*240+10,ly+28,MX+i*240+22,ly+40],fill=col)
+        tx(d,MX+i*240+28,ly+26,nm,12,False,MUT)
+    tx(d,W-MX-360,ly+26,'Повтор акторов в блоках — для читаемости',11,False,MUT)
     im.save(f'{OUT}/use_case_diagram.png')
 
 # ---------------------------------------------------------------- db schema
