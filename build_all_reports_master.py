@@ -15,7 +15,7 @@ from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image as RLImage, Table as RLTable, TableStyle, PageBreak, KeepTogether, Preformatted
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image as RLImage, Table as RLTable, TableStyle, PageBreak, CondPageBreak, Preformatted
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib import colors
 
@@ -209,6 +209,34 @@ def reportlab_inline(text):
     return ''.join(rendered)
 
 
+def is_report_section_heading(level, heading):
+    """Return whether a Markdown heading is a report-level section.
+
+    Reports use ``##`` for numbered sections and ``###`` for subsections.  A
+    top-level number is followed by whitespace (``2. Section``), while a
+    nested number is not (``2.1. Subsection``).  The explanatory note also
+    uses an unnumbered introduction heading.
+    """
+    if level != 2:
+        return False
+    text = plain_inline_md(heading).strip()
+    return bool(
+        re.match(r'^\d+\.(?!\d)\s+', text)
+        or re.match(r'^(?:ВВЕДЕНИЕ|ЗАКЛЮЧЕНИЕ|АННОТАЦИЯ|РЕФЕРАТ)\b', text, re.IGNORECASE)
+    )
+
+
+def is_first_content_heading(level, heading):
+    """Find the first real section after the report's title-page metadata."""
+    if level > 2:
+        return False
+    text = plain_inline_md(heading).strip()
+    return bool(
+        re.match(r'^\d+\.(?!\d)\s+', text)
+        or re.match(r'^(?:ВВЕДЕНИЕ|ОПИСАНИЕ|ЦЕЛЬ|АННОТАЦИЯ|РЕФЕРАТ)\b', text, re.IGNORECASE)
+    )
+
+
 def parse_markdown_blocks(md_text, base_dir):
     lines = md_text.splitlines()
     blocks = []
@@ -383,14 +411,14 @@ def generate_docx(doc_type, title, discipline, variant, student, city_year, bloc
     fig_count = 0
     tbl_count = 0
     skip_leading = True
+    main_section_seen = False
     
     for b_type, b_content in blocks:
         if skip_leading:
-            if b_type == 'heading' and b_content[0] <= 2:
-                if '1.' in b_content[1] or 'Введение' in b_content[1] or 'Описание' in b_content[1] or 'ЦЕЛЬ' in b_content[1] or 'АННОТАЦИЯ' in b_content[1]:
-                    skip_leading = False
-                else:
-                    continue
+            if b_type == 'heading' and is_first_content_heading(b_content[0], b_content[1]):
+                skip_leading = False
+            elif b_type == 'heading' and b_content[0] <= 2:
+                continue
             elif b_type == 'paragraph' and ('Дисциплина:' in b_content or 'Вариант' in b_content or 'Тема:' in b_content):
                 continue
             else:
@@ -398,8 +426,16 @@ def generate_docx(doc_type, title, discipline, variant, student, city_year, bloc
 
         if b_type == 'heading':
             level, htext = b_content
+            is_main_section = is_report_section_heading(level, htext)
             p_h = doc.add_paragraph()
             p_h.alignment = WD_ALIGN_PARAGRAPH.LEFT
+            p_h.paragraph_format.keep_with_next = True
+            p_h.paragraph_format.keep_together = True
+            p_h.paragraph_format.widow_control = True
+            if is_main_section and main_section_seen:
+                p_h.paragraph_format.page_break_before = True
+            if is_main_section:
+                main_section_seen = True
             clean_h = plain_inline_md(htext)
             if level == 1:
                 p_h.paragraph_format.space_before = Pt(14)
@@ -430,6 +466,7 @@ def generate_docx(doc_type, title, discipline, variant, student, city_year, bloc
             p.paragraph_format.first_line_indent = Mm(12.5)
             p.paragraph_format.line_spacing = 1.15
             p.paragraph_format.space_after = Pt(6)
+            p.paragraph_format.widow_control = True
             
             add_docx_inline(p, text, 14)
                     
@@ -441,6 +478,8 @@ def generate_docx(doc_type, title, discipline, variant, student, city_year, bloc
             p.paragraph_format.left_indent = Mm(12.5 + indent * 2.5)
             p.paragraph_format.line_spacing = 1.15
             p.paragraph_format.space_after = Pt(3)
+            p.paragraph_format.keep_together = True
+            p.paragraph_format.widow_control = True
             
             prefix = "• " if bullet in ['-', '*', '+'] else f"{bullet} "
             r_pre = p.add_run(prefix)
@@ -458,17 +497,25 @@ def generate_docx(doc_type, title, discipline, variant, student, city_year, bloc
                 p_img.alignment = WD_ALIGN_PARAGRAPH.CENTER
                 p_img.paragraph_format.space_before = Pt(10)
                 p_img.paragraph_format.space_after = Pt(4)
+                p_img.paragraph_format.keep_with_next = True
+                p_img.paragraph_format.keep_together = True
                 
                 with PILImage.open(img_path) as im:
                     w, h = im.size
                 
-                max_w = Mm(160)
-                p_img.add_run().add_picture(img_path, width=max_w)
+                max_w_mm = 160
+                max_h_mm = 220
+                scale = min(max_w_mm / w, max_h_mm / h)
+                picture_width = Mm(w * scale)
+                picture_height = Mm(h * scale)
+                p_img.add_run().add_picture(img_path, width=picture_width, height=picture_height)
                 
                 p_cap = doc.add_paragraph()
                 p_cap.alignment = WD_ALIGN_PARAGRAPH.CENTER
                 p_cap.paragraph_format.space_before = Pt(4)
                 p_cap.paragraph_format.space_after = Pt(12)
+                p_cap.paragraph_format.keep_together = True
+                p_cap.paragraph_format.widow_control = True
                 cap_text = f"Рисунок {fig_count} — {plain_inline_md(caption)}" if caption else f"Рисунок {fig_count}"
                 r_cap = p_cap.add_run(cap_text)
                 r_cap.font.name = 'Times New Roman'
@@ -484,6 +531,8 @@ def generate_docx(doc_type, title, discipline, variant, student, city_year, bloc
                 p_tcap.paragraph_format.first_line_indent = Mm(12.5)
                 p_tcap.paragraph_format.space_before = Pt(8)
                 p_tcap.paragraph_format.space_after = Pt(4)
+                p_tcap.paragraph_format.keep_with_next = True
+                p_tcap.paragraph_format.keep_together = True
                 r_tcap = p_tcap.add_run(f"Таблица {tbl_count} — Спецификация данных")
                 r_tcap.font.name = 'Times New Roman'
                 r_tcap.font.size = Pt(12)
@@ -498,6 +547,13 @@ def generate_docx(doc_type, title, discipline, variant, student, city_year, bloc
                 
                 for r_idx, row_cells in enumerate(rows):
                     row = table.rows[r_idx]
+                    tr_pr = row._tr.get_or_add_trPr()
+                    cant_split = OxmlElement('w:cantSplit')
+                    tr_pr.append(cant_split)
+                    if r_idx == 0:
+                        repeat_header = OxmlElement('w:tblHeader')
+                        repeat_header.set(qn('w:val'), 'true')
+                        tr_pr.append(repeat_header)
                     for c_idx, cell_value in enumerate(row_cells):
                         if c_idx < num_cols:
                             cell = row.cells[c_idx]
@@ -621,7 +677,9 @@ def generate_pdf(doc_type, title, discipline, variant, student, city_year, block
         leading=15,
         alignment=4,
         firstLineIndent=1.25 * 28.3465,
-        spaceAfter=6
+        spaceAfter=6,
+        allowWidows=0,
+        allowOrphans=0
     )
     
     list_style = ParagraphStyle(
@@ -631,7 +689,9 @@ def generate_pdf(doc_type, title, discipline, variant, student, city_year, block
         leading=15,
         alignment=4,
         leftIndent=1.25 * 28.3465,
-        spaceAfter=3
+        spaceAfter=3,
+        allowWidows=0,
+        allowOrphans=0
     )
     
     caption_style = ParagraphStyle(
@@ -660,6 +720,12 @@ def generate_pdf(doc_type, title, discipline, variant, student, city_year, block
         alignment=1
     )
     
+    # A report-level section starts on a fresh page, but do not insert a
+    # blank page when the previous flowable already ended at the top of one.
+    doc._calc()
+    frame_height = doc.height - 12  # ReportLab's default top/bottom frame padding.
+    section_break_height = max(1, frame_height - 12)
+
     story = []
     
     # Title Page
@@ -678,14 +744,14 @@ def generate_pdf(doc_type, title, discipline, variant, student, city_year, block
     fig_count = 0
     tbl_count = 0
     skip_leading = True
+    main_section_seen = False
     
     for b_type, b_content in blocks:
         if skip_leading:
-            if b_type == 'heading' and b_content[0] <= 2:
-                if '1.' in b_content[1] or 'Введение' in b_content[1] or 'Описание' in b_content[1] or 'ЦЕЛЬ' in b_content[1] or 'АННОТАЦИЯ' in b_content[1]:
-                    skip_leading = False
-                else:
-                    continue
+            if b_type == 'heading' and is_first_content_heading(b_content[0], b_content[1]):
+                skip_leading = False
+            elif b_type == 'heading' and b_content[0] <= 2:
+                continue
             elif b_type == 'paragraph' and ('Дисциплина:' in b_content or 'Вариант' in b_content or 'Тема:' in b_content):
                 continue
             else:
@@ -693,6 +759,11 @@ def generate_pdf(doc_type, title, discipline, variant, student, city_year, block
                 
         if b_type == 'heading':
             level, htext = b_content
+            is_main_section = is_report_section_heading(level, htext)
+            if is_main_section and main_section_seen:
+                story.append(CondPageBreak(section_break_height))
+            if is_main_section:
+                main_section_seen = True
             htext_fmt = reportlab_inline(htext)
             if level == 1:
                 story.append(Paragraph(htext_fmt.upper(), h1_style))
@@ -725,14 +796,24 @@ def generate_pdf(doc_type, title, discipline, variant, student, city_year, block
                 
                 cap_text = f"<i>Рисунок {fig_count} — {reportlab_inline(caption)}</i>" if caption else f"<i>Рисунок {fig_count}</i>"
                 img_flowable = RLImage(img_path, width=img_w, height=img_h)
+                img_flowable.keepWithNext = True
                 cap_flowable = Paragraph(cap_text, caption_style)
-                story.append(KeepTogether([img_flowable, cap_flowable]))
+                story.extend([img_flowable, cap_flowable])
                 
         elif b_type == 'table':
             rows = b_content
             if rows:
                 tbl_count += 1
-                tcap = Paragraph(f"<b>Таблица {tbl_count} — Спецификация данных</b>", ParagraphStyle('TCap', fontName='DejaVuSerif-Bold', fontSize=10, spaceBefore=8, spaceAfter=4, firstLineIndent=1.25*28.3465))
+                tcap_style = ParagraphStyle(
+                    f'TCap{tbl_count}',
+                    fontName='DejaVuSerif-Bold',
+                    fontSize=10,
+                    spaceBefore=8,
+                    spaceAfter=4,
+                    firstLineIndent=1.25 * 28.3465,
+                    keepWithNext=True
+                )
+                tcap = Paragraph(f"<b>Таблица {tbl_count} — Спецификация данных</b>", tcap_style)
                 
                 table_data = []
                 for r_idx, r in enumerate(rows):
@@ -749,7 +830,7 @@ def generate_pdf(doc_type, title, discipline, variant, student, city_year, block
                 total_w = 165 * 2.83465
                 col_w = total_w / num_cols
                 
-                t = RLTable(table_data, colWidths=[col_w]*num_cols)
+                t = RLTable(table_data, colWidths=[col_w]*num_cols, repeatRows=1, splitByRow=1)
                 t.setStyle(TableStyle([
                     ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#E2E8F0')),
                     ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#CBD5E1')),
@@ -759,7 +840,10 @@ def generate_pdf(doc_type, title, discipline, variant, student, city_year, block
                     ('LEFTPADDING', (0,0), (-1,-1), 4),
                     ('RIGHTPADDING', (0,0), (-1,-1), 4),
                 ]))
-                story.append(KeepTogether([tcap, t, Spacer(1, 8)]))
+                # Keep the table caption, heading immediately before it, and
+                # the table together as a flow chain, while still allowing a
+                # long table to continue onto following pages.
+                story.extend([tcap, t, Spacer(1, 8)])
                 
         elif b_type == 'code':
             story.append(Preformatted(b_content, ParagraphStyle('Code', fontName='DejaVuSansMono', fontSize=8.5, leading=11, spaceBefore=4, spaceAfter=6, leftIndent=10)))
