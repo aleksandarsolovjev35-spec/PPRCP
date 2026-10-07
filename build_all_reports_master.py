@@ -27,6 +27,14 @@ pdfmetrics.registerFont(TTFont('DejaVuSans', '/usr/share/fonts/truetype/dejavu/D
 pdfmetrics.registerFont(TTFont('DejaVuSans-Bold', '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf'))
 pdfmetrics.registerFont(TTFont('DejaVuSansMono', '/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf'))
 
+# Title page vertical layout (points), shared by the DOCX and PDF exporters:
+# gap above the document type, gap above the "Выполнил" block and gap above
+# the city/year line.  Worst case (two-line document type, four-line title,
+# three-line variant) totals ~600 pt against the 729 pt A4 text area.
+TITLE_PAGE_TOP_GAP = 150
+TITLE_PAGE_AUTHOR_GAP = 84
+TITLE_PAGE_CITY_GAP = 96
+
 class NumberedCanvas(canvas.Canvas):
     def __init__(self, *args, **kwargs):
         super(NumberedCanvas, self).__init__(*args, **kwargs)
@@ -334,6 +342,61 @@ def parse_markdown_blocks(md_text, base_dir):
         
     return blocks
 
+def fit_title_page(flowables, avail_width, avail_height):
+    """Make sure the PDF title page always fits on a single page.
+
+    The page ends with an unconditional ``PageBreak``; if the title block ever
+    spilled over, the city/year line would sit alone on page 2 followed by an
+    otherwise blank page.  Measure the text and shrink the decorative spacers
+    (never the text) so that the total stays within the frame.
+    """
+    spacers = [f for f in flowables if isinstance(f, Spacer)]
+    text_height = 0.0
+    for f in flowables:
+        if isinstance(f, Spacer):
+            continue
+        _width, height = f.wrap(avail_width, avail_height)
+        text_height += height + f.getSpaceBefore() + f.getSpaceAfter()
+    nominal_gap = sum(s.height for s in spacers)
+    free = avail_height - text_height
+    if spacers and nominal_gap > free:
+        scale = max(free, 0) / nominal_gap
+        for s in spacers:
+            s.height *= scale
+
+
+def table_lead_in(story):
+    """Return the trailing ``keepWithNext`` flowables (headings) of a story.
+
+    They are glued to whatever follows, so a page must have room for them
+    *and* the beginning of a table that comes next.
+    """
+    lead_in = []
+    for flowable in reversed(story):
+        if isinstance(flowable, Spacer) or not flowable.getKeepWithNext():
+            break
+        lead_in.append(flowable)
+    lead_in.reverse()
+    return lead_in
+
+
+def table_start_height(lead_in, caption, table, avail_width, avail_height, min_body_rows=2):
+    """Height needed to start a table on the current page.
+
+    Counts the headings leading into the table, its caption, the header row
+    and a couple of body rows, so a caption or heading is never stranded at
+    the bottom of a page while the table itself begins on the next one.
+    """
+    needed = 0.0
+    for flowable in lead_in + [caption]:
+        _width, height = flowable.wrap(avail_width, avail_height)
+        needed += height + flowable.getSpaceBefore() + flowable.getSpaceAfter()
+    table.wrap(avail_width, avail_height)
+    row_heights = list(table._rowHeights)
+    needed += sum(row_heights[:1 + min_body_rows])
+    return min(needed, avail_height)
+
+
 def generate_docx(doc_type, title, discipline, variant, student, city_year, blocks, output_path):
     doc = docx.Document()
     
@@ -353,50 +416,50 @@ def generate_docx(doc_type, title, discipline, variant, student, city_year, bloc
     font.size = Pt(14)
     font.color.rgb = RGBColor(0, 0, 0)
     
-    # Title Page
-    for _ in range(8):
-        doc.add_paragraph()
-        
-    p_title = doc.add_paragraph()
-    p_title.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    p_title.paragraph_format.space_after = Pt(6)
-    r1 = p_title.add_run(doc_type.upper() + "\n")
-    r1.font.name = 'Times New Roman'
-    r1.font.size = Pt(16)
-    r1.bold = True
-    
-    p_sub = doc.add_paragraph()
-    p_sub.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    r2 = p_sub.add_run(f"по дисциплине: «{discipline}»\n\n")
-    r2.font.name = 'Times New Roman'
-    r2.font.size = Pt(14)
-    
-    r3 = p_sub.add_run(f"Тема: «{title}»\n{variant}")
-    r3.font.name = 'Times New Roman'
-    r3.font.size = Pt(14)
-    r3.bold = True
-    
-    for _ in range(5):
-        doc.add_paragraph()
-        
-    p_meta = doc.add_paragraph()
-    p_meta.alignment = WD_ALIGN_PARAGRAPH.RIGHT
-    p_meta.paragraph_format.line_spacing = 1.15
-    r4 = p_meta.add_run(f"Выполнил:\n{student}\n")
-    r4.font.name = 'Times New Roman'
-    r4.font.size = Pt(13)
-    
-    for _ in range(4):
-        doc.add_paragraph()
-        
-    p_bot = doc.add_paragraph()
-    p_bot.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    r5 = p_bot.add_run(city_year)
-    r5.font.name = 'Times New Roman'
-    r5.font.size = Pt(12)
-    
-    # Page break for main content
-    doc.add_page_break()
+    # Title Page.
+    #
+    # Vertical gaps are explicit paragraph spacing rather than empty spacer
+    # paragraphs: the latter inherit the template's 10 pt "space after" and
+    # 1.15 line spacing (~28 pt each), which made the title page taller than
+    # an A4 page.  "Москва, 2026 г." then landed on page 2, followed by the
+    # page break -- leaving an almost blank page in every report.  Even the
+    # longest title/document type combination now fits with ~140 pt to spare.
+    def title_paragraph(text, size, bold=False, align=WD_ALIGN_PARAGRAPH.CENTER,
+                        before=0, after=0, line_spacing=1.0):
+        p = doc.add_paragraph()
+        p.alignment = align
+        p.paragraph_format.space_before = Pt(before)
+        p.paragraph_format.space_after = Pt(after)
+        p.paragraph_format.line_spacing = line_spacing
+        p.paragraph_format.keep_together = True
+        run = p.add_run(text)  # '\n' becomes a soft line break inside the paragraph
+        run.font.name = 'Times New Roman'
+        run.font.size = Pt(size)
+        run.bold = bold
+        return p
+
+    title_paragraph(doc_type.upper(), 16, bold=True, before=TITLE_PAGE_TOP_GAP, after=12)
+    title_paragraph(f"по дисциплине: «{discipline}»", 14, after=18)
+    title_paragraph(f"Тема: «{title}»", 14, bold=True, after=6)
+    title_paragraph(variant, 14, bold=True)
+    title_paragraph(f"Выполнил:\n{student}", 13, align=WD_ALIGN_PARAGRAPH.RIGHT,
+                    before=TITLE_PAGE_AUTHOR_GAP, line_spacing=1.15)
+    title_paragraph(city_year, 12, before=TITLE_PAGE_CITY_GAP)
+
+    # The body starts on a new page via "page break before" on its first
+    # paragraph (see body_paragraph below) instead of a separate paragraph
+    # holding a manual break.  A break paragraph leaves a stray empty line at
+    # the top of page 2 and, whenever the title page is filled exactly to the
+    # bottom, produces an entirely blank page.
+    body_started = False
+
+    def body_paragraph():
+        nonlocal body_started
+        p = doc.add_paragraph()
+        if not body_started:
+            p.paragraph_format.page_break_before = True
+            body_started = True
+        return p
     
     # Different first page header/footer
     section.different_first_page_header_footer = True
@@ -412,6 +475,10 @@ def generate_docx(doc_type, title, discipline, variant, student, city_year, bloc
     tbl_count = 0
     skip_leading = True
     main_section_seen = False
+    # Word needs a paragraph between a table and whatever follows it; it is
+    # emitted lazily so it never sits alone on a page in front of a heading
+    # that itself starts a new page (which would print as a blank page).
+    table_spacer_pending = False
     
     for b_type, b_content in blocks:
         if skip_leading:
@@ -424,10 +491,20 @@ def generate_docx(doc_type, title, discipline, variant, student, city_year, bloc
             else:
                 skip_leading = False
 
+        starts_new_page = (
+            b_type == 'heading'
+            and main_section_seen
+            and is_report_section_heading(b_content[0], b_content[1])
+        )
+        if table_spacer_pending:
+            table_spacer_pending = False
+            if not starts_new_page:
+                doc.add_paragraph().paragraph_format.space_after = Pt(6)
+
         if b_type == 'heading':
             level, htext = b_content
             is_main_section = is_report_section_heading(level, htext)
-            p_h = doc.add_paragraph()
+            p_h = body_paragraph()
             p_h.alignment = WD_ALIGN_PARAGRAPH.LEFT
             p_h.paragraph_format.keep_with_next = True
             p_h.paragraph_format.keep_together = True
@@ -461,7 +538,7 @@ def generate_docx(doc_type, title, discipline, variant, student, city_year, bloc
                 
         elif b_type == 'paragraph':
             text = clean_inline_md(b_content)
-            p = doc.add_paragraph()
+            p = body_paragraph()
             p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
             p.paragraph_format.first_line_indent = Mm(12.5)
             p.paragraph_format.line_spacing = 1.15
@@ -473,7 +550,7 @@ def generate_docx(doc_type, title, discipline, variant, student, city_year, bloc
         elif b_type == 'list_item':
             bullet, item_text, indent = b_content
             text = clean_inline_md(item_text)
-            p = doc.add_paragraph()
+            p = body_paragraph()
             p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
             p.paragraph_format.left_indent = Mm(12.5 + indent * 2.5)
             p.paragraph_format.line_spacing = 1.15
@@ -493,7 +570,7 @@ def generate_docx(doc_type, title, discipline, variant, student, city_year, bloc
             caption, img_path = b_content
             if os.path.exists(img_path):
                 fig_count += 1
-                p_img = doc.add_paragraph()
+                p_img = body_paragraph()
                 p_img.alignment = WD_ALIGN_PARAGRAPH.CENTER
                 p_img.paragraph_format.space_before = Pt(10)
                 p_img.paragraph_format.space_after = Pt(4)
@@ -526,7 +603,7 @@ def generate_docx(doc_type, title, discipline, variant, student, city_year, bloc
             rows = b_content
             if rows:
                 tbl_count += 1
-                p_tcap = doc.add_paragraph()
+                p_tcap = body_paragraph()
                 p_tcap.alignment = WD_ALIGN_PARAGRAPH.LEFT
                 p_tcap.paragraph_format.first_line_indent = Mm(12.5)
                 p_tcap.paragraph_format.space_before = Pt(8)
@@ -569,16 +646,20 @@ def generate_docx(doc_type, title, discipline, variant, student, city_year, bloc
                             
                             add_docx_inline(p, cell_text, 11, default_bold=(r_idx == 0))
                                         
-                doc.add_paragraph().paragraph_format.space_after = Pt(6)
+                table_spacer_pending = True
                 
         elif b_type == 'code':
-            p_code = doc.add_paragraph()
+            p_code = body_paragraph()
             p_code.paragraph_format.left_indent = Mm(10)
             p_code.paragraph_format.space_before = Pt(6)
             p_code.paragraph_format.space_after = Pt(6)
             r = p_code.add_run(b_content)
             r.font.name = 'Courier New'
             r.font.size = Pt(10)
+
+    if table_spacer_pending:
+        # A document must not end with a table: Word requires a closing paragraph.
+        doc.add_paragraph().paragraph_format.space_after = Pt(6)
             
     doc.save(output_path)
     print(f"  [DOCX] Successfully saved: {output_path}")
@@ -723,21 +804,25 @@ def generate_pdf(doc_type, title, discipline, variant, student, city_year, block
     # A report-level section starts on a fresh page, but do not insert a
     # blank page when the previous flowable already ended at the top of one.
     doc._calc()
+    frame_width = doc.width - 12    # ReportLab's default left/right frame padding.
     frame_height = doc.height - 12  # ReportLab's default top/bottom frame padding.
     section_break_height = max(1, frame_height - 12)
 
     story = []
     
     # Title Page
-    story.append(Spacer(1, 160))
-    story.append(Paragraph(xml_escape(doc_type.upper()), title_main_style))
-    story.append(Paragraph(f"по дисциплине: «{xml_escape(discipline)}»<br/><br/><b>Тема: «{xml_escape(title)}»</b><br/><b>{xml_escape(variant)}</b>", title_sub_style))
-    story.append(Spacer(1, 60))
-    
     student_fmt = xml_escape(student).replace('\n', '<br/>')
-    story.append(Paragraph(f"<b>Выполнил:</b><br/>{student_fmt}", title_meta_style))
-    story.append(Spacer(1, 60))
-    story.append(Paragraph(xml_escape(city_year), title_bot_style))
+    title_page = [
+        Spacer(1, TITLE_PAGE_TOP_GAP),
+        Paragraph(xml_escape(doc_type.upper()), title_main_style),
+        Paragraph(f"по дисциплине: «{xml_escape(discipline)}»<br/><br/><b>Тема: «{xml_escape(title)}»</b><br/><b>{xml_escape(variant)}</b>", title_sub_style),
+        Spacer(1, TITLE_PAGE_AUTHOR_GAP),
+        Paragraph(f"<b>Выполнил:</b><br/>{student_fmt}", title_meta_style),
+        Spacer(1, TITLE_PAGE_CITY_GAP),
+        Paragraph(xml_escape(city_year), title_bot_style),
+    ]
+    fit_title_page(title_page, frame_width, frame_height)
+    story.extend(title_page)
     story.append(PageBreak())
     
     # Main Content
@@ -810,8 +895,7 @@ def generate_pdf(doc_type, title, discipline, variant, student, city_year, block
                     fontSize=10,
                     spaceBefore=8,
                     spaceAfter=4,
-                    firstLineIndent=1.25 * 28.3465,
-                    keepWithNext=True
+                    firstLineIndent=1.25 * 28.3465
                 )
                 tcap = Paragraph(f"<b>Таблица {tbl_count} — Спецификация данных</b>", tcap_style)
                 
@@ -840,9 +924,17 @@ def generate_pdf(doc_type, title, discipline, variant, student, city_year, block
                     ('LEFTPADDING', (0,0), (-1,-1), 4),
                     ('RIGHTPADDING', (0,0), (-1,-1), 4),
                 ]))
-                # Keep the table caption, heading immediately before it, and
-                # the table together as a flow chain, while still allowing a
-                # long table to continue onto following pages.
+                # Keep the caption (and any heading right before it) on the
+                # same page as the first rows of the table.  Doing this with
+                # ``keepWithNext`` makes ReportLab move the whole group to a
+                # new page whenever the table does not fit in the remaining
+                # space -- even a multi-page table that cannot fit anywhere --
+                # which left pages almost empty.  A conditional break sized
+                # for "lead-in + caption + header + two rows" avoids stranded
+                # captions while letting long tables split normally.
+                lead_in = table_lead_in(story)
+                needed = table_start_height(lead_in, tcap, t, frame_width, frame_height)
+                story.insert(len(story) - len(lead_in), CondPageBreak(needed))
                 story.extend([tcap, t, Spacer(1, 8)])
                 
         elif b_type == 'code':
