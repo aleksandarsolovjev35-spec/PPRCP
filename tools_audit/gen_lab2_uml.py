@@ -176,7 +176,7 @@ def class_diagram(lang=None):
         'EducationalProgram': dict(name='EducationalProgram', attrs=[
             '- id: Integer {id}', '- code: String = "09.03.04"', '- title: String',
             '- level: EducationLevel', '- studyForm: StudyForm'], ops=[
-            '+ curriculums(year: String): List',
+            '+ curriculums(year: String): List<Curriculum>',
             '+ addCompetency(k: Competency): void']),
         'Curriculum': dict(name='Curriculum', attrs=[
             '- id: Integer {id}', '- academicYear: String', '- version: String = "1.0"',
@@ -195,7 +195,7 @@ def class_diagram(lang=None):
         'Department': dict(name='Department', attrs=[
             '- id: Integer {id}', '- name: String', '- shortName: String',
             '- type: DepartmentType', '- phone: String', '- email: String'], ops=[
-            '+ releasingCurriculums(): List']),
+            '+ releasingCurriculums(): List<Curriculum>']),
         'AuditLog': dict(name='AuditLog', attrs=[
             '- id: Integer {id}', '- eventTime: DateTime', '- userName: String',
             '- userRole: String', '- action: String', '- entityName: String',
@@ -292,6 +292,18 @@ def class_diagram(lang=None):
         return min(y1, y2) + t * min(h1, h2)
 
     def assoc(pts, start=None, end=None, dash=None, **lab):
+        # ромб композиции / треугольник обобщения занимает ~20 px у конца связи:
+        # кратность этого конца поднимаем выше декорации, иначе ромб ложится на цифру
+        for key, kind, pt, other in (('m0_at', start, pts[0], pts[1]),
+                                     ('m1_at', end, pts[-1], pts[-2])):
+            if kind in ('diamond_filled', 'hollow') and key not in lab and key[:-3] in lab:
+                dx, dy = other[0] - pt[0], other[1] - pt[1]
+                if abs(dx) >= abs(dy):          # горизонтальная связь
+                    sgn = 1 if dx > 0 else -1
+                    lab[key] = (pt[0] + sgn * 26, pt[1] - 7, 'ls' if sgn > 0 else 'rs')
+                else:                            # вертикальная связь
+                    sgn = 1 if dy > 0 else -1
+                    lab[key] = (pt[0] - 13, pt[1] + sgn * 32, 'rs')
         _poly(pts, LINE, 1.3)
         GEOM['ends'].append((start, end))
         c.line(pts, fill=LINE, width=1.3, dash=dash)
