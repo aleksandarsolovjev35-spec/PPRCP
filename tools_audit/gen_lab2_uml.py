@@ -432,23 +432,23 @@ def assembly(c, x, y_top, y_bot, name=None, provider='top', size=11.0):
     return ym
 
 
-def subsystem_frame(c, x, y, w, h, name, stereo='subsystem', fill='#fcfdff'):
-    c.rect(x, y, w, h, fill=fill, outline='#94a3b8', width=1.4)
+def subsystem_frame(c, x, y, w, h, name, stereo='subsystem', fill='#ffffff'):
+    c.rect(x, y, w, h, fill=fill, outline='#374151', width=1.4)
     st = '«%s»' % stereo
     tab = c.tw(st, 9.6) + c.tw(name, 12.2, 'bold') + 34
-    c.rect(x, y, tab, 26, fill='#eef2f7', outline='#94a3b8', width=1.2)
-    c.text(x + 10, y + 17, st, 9.6, 'normal', '#475569')
+    c.rect(x, y, tab, 26, fill='#f2f2f2', outline='#374151', width=1.2)
+    c.text(x + 10, y + 17, st, 9.6, 'normal', '#374151')
     c.text(x + 18 + c.tw(st, 9.6), y + 18, name, 12.2, 'bold', '#1f2937')
 
 
-def component_slim(c, x, y, w, h, name, stereo='component', fill='#eef2fb', name_size=12.6,
+def component_slim(c, x, y, w, h, name, stereo='component', fill='#ffffff', name_size=12.6,
                    sub=None):
     """Компонент UML 2.5: ключевое слово, имя, пиктограмма и строка расшифровки."""
     c.rect(x, y, w, h, fill=fill, outline=LINE, width=1.4)
-    c.text(x + w / 2 - 10, y + 20, '«%s»' % stereo, 9.8, 'normal', '#374151', anchor='ms')
+    c.text(x + w / 2 - 10, y + 20, '«%s»' % stereo, 9.8, 'normal', '#1f2937', anchor='ms')
     c.text(x + w / 2 - 10, y + 42, name, name_size, 'bold', INK, anchor='ms')
     if sub:
-        c.text(x + w / 2 - 10, y + 61, sub, 9.8, 'italic', '#4b5563', anchor='ms')
+        c.text(x + w / 2 - 10, y + 61, sub, 9.8, 'italic', '#374151', anchor='ms')
     _comp_icon(c, x + w - 34, y + 12)
 
 
@@ -525,11 +525,11 @@ def component_diagram(lang=None):
     # ---------------- компоненты ----------------------------------------
     subs = T['subs']
     ui_w, ui_h, ui_y = 400, 92, 162
-    component_slim(c, CX - ui_w / 2, ui_y, ui_w, ui_h, 'PortalUI', fill='#e8f1fe',
+    component_slim(c, CX - ui_w / 2, ui_y, ui_w, ui_h, 'PortalUI', fill='#ffffff',
                    sub=subs['PortalUI'])
 
     k_w, k_h, k_y = 1480, 92, 330
-    component_slim(c, CX - k_w / 2, k_y, k_w, k_h, 'HttpKernel', fill='#eef2fb',
+    component_slim(c, CX - k_w / 2, k_y, k_w, k_h, 'HttpKernel', fill='#ffffff',
                    sub=subs['HttpKernel'])
 
     sv_w, sv_h, sv_y, sv_step = 264, 92, 498, 290
@@ -539,10 +539,10 @@ def component_diagram(lang=None):
     ifaces = ['ICurriculumService', 'IFgosValidation', 'IWorkflow',
               'IMemoProcessing', 'IAuditSink']
     for x, nm in zip(sv_x, services):
-        component_slim(c, x, sv_y, sv_w, sv_h, nm, fill='#f3f0fd', sub=subs[nm])
+        component_slim(c, x, sv_y, sv_w, sv_h, nm, fill='#ffffff', sub=subs[nm])
 
     d_y = 666
-    component_slim(c, CX - k_w / 2, d_y, k_w, k_h, 'DataAccessLayer', fill='#eaf5ec',
+    component_slim(c, CX - k_w / 2, d_y, k_w, k_h, 'DataAccessLayer', fill='#ffffff',
                    sub=subs['DataAccessLayer'])
 
     # ---------------- сборочные разъёмы ---------------------------------
@@ -558,21 +558,21 @@ def component_diagram(lang=None):
     dbw, dbh, dby = 480, 112, 860
     dbx = CX - dbw / 2
     c.d.ellipse([dbx * c.s, dby * c.s, (dbx + dbw) * c.s, (dby + 24) * c.s],
-                fill='#fdf4e3', outline=LINE, width=3)
-    c.rect(dbx, dby + 12, dbw, dbh - 24, fill='#fdf4e3', outline=None)
+                fill='#ffffff', outline=LINE, width=3)
+    c.rect(dbx, dby + 12, dbw, dbh - 24, fill='#ffffff', outline=None)
     c.line([(dbx, dby + 12), (dbx, dby + dbh - 12)], fill=LINE, width=1.4)
     c.line([(dbx + dbw, dby + 12), (dbx + dbw, dby + dbh - 12)], fill=LINE, width=1.4)
     c.d.arc([dbx * c.s, (dby + dbh - 24) * c.s, (dbx + dbw) * c.s, (dby + dbh) * c.s],
             0, 180, fill=LINE, width=4)
     c.text(CX, dby + 50, '«database» anok_portal', 12.4, 'bold', INK, anchor='ms')
-    c.text(CX, dby + 72, T['tables'], 10.0, 'normal', '#374151', anchor='ms')
+    c.text(CX, dby + 72, T['tables'], 10.0, 'normal', '#1f2937', anchor='ms')
     c.line([(CX, d_y + k_h), (CX, dby)], fill=LINE, width=1.3, dash=(7, 5))
     c.arrowhead((CX, dby), (CX, d_y + k_h), 'open', LINE, 10)
-    c.text(CX + 14, (d_y + k_h + dby) / 2 + 4, '«use»', 10.4, 'italic', '#374151')
+    c.text(CX + 14, (d_y + k_h + dby) / 2 + 4, '«use»', 10.4, 'italic', '#1f2937')
 
     # ---------------- примечания ----------------------------------------
-    note(c, 60, 830, 600, T['note1'], fill='#fffdf0')
-    note(c, 1210, 830, 610, T['note2'], fill='#fffdf0')
+    note(c, 60, 830, 600, T['note1'], fill='#ffffff', outline='#374151')
+    note(c, 1210, 830, 610, T['note2'], fill='#ffffff', outline='#374151')
 
     # ---------------- легенда -------------------------------------------
     lx, ly, lw, lh = 60, 1000, 1120, 150
@@ -582,14 +582,14 @@ def component_diagram(lang=None):
     c.arc(lx + 52, r1, 10, 270, 90, fill=LINE, width=1.4)
     c.circle(lx + 52, r1, 6, fill='#ffffff', outline=LINE, width=1.2)
     c.line([(lx + 62, r1), (lx + 84, r1)], fill=LINE, width=1.3)
-    c.text(lx + 96, r1 + 5, T['l1'], 10.6, 'normal', '#374151')
+    c.text(lx + 96, r1 + 5, T['l1'], 10.6, 'normal', '#1f2937')
     c.line([(lx + 450, r1), (lx + 516, r1)], fill=LINE, width=1.2, dash=(7, 5))
     c.arrowhead((lx + 516, r1), (lx + 450, r1), 'open', LINE, 9)
-    c.text(lx + 528, r1 + 5, T['l2'], 10.6, 'normal', '#374151')
+    c.text(lx + 528, r1 + 5, T['l2'], 10.6, 'normal', '#1f2937')
     _comp_icon(c, lx + 26, r2 - 14)
-    c.text(lx + 96, r2 + 5, T['l3'], 10.6, 'normal', '#374151')
-    c.rect(lx + 450, r2 - 16, 46, 30, fill='#fcfdff', outline='#94a3b8', width=1.3)
-    c.text(lx + 528, r2 + 5, T['l4'], 10.6, 'normal', '#374151')
+    c.text(lx + 96, r2 + 5, T['l3'], 10.6, 'normal', '#1f2937')
+    c.rect(lx + 450, r2 - 16, 46, 30, fill='#ffffff', outline='#94a3b8', width=1.3)
+    c.text(lx + 528, r2 + 5, T['l4'], 10.6, 'normal', '#1f2937')
 
     fname = 'component_diagram.png' if lang == COMP_LANG else 'component_diagram_%s.png' % lang
     c.save(os.path.join(OUT, fname))

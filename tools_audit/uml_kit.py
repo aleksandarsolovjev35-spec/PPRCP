@@ -290,7 +290,7 @@ def note(c, x, y, w, lines, size=10.5, pad=10, fill='#fffbe6', outline='#b58900'
     c.poly([(x, y), (x + w - fold, y), (x + w, y + fold), (x + w, y + h), (x, y + h)],
            fill=fill, outline=outline, width=1.1)
     c.poly([(x + w - fold, y), (x + w - fold, y + fold), (x + w, y + fold)],
-           fill='#fffdf3', outline=outline, width=1.1)
+           fill=fill, outline=outline, width=1.1)
     for i, ln in enumerate(lines):
         c.text(x + pad, y + pad + line_h * (i + 0.82), ln, fs, 'normal', '#3f3f46')
     return (x, y, w, h)
