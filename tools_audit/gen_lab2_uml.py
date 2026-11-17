@@ -408,38 +408,71 @@ def socket(c, x, y, r=7.0, side='bottom'):
     return (x + 2 * r, y)
 
 
+def assembly(c, x, y_top, y_bot, name=None, provider='top', size=10.2):
+    """Сборочный разъём UML 2.5: «шарик» поставщика надет в «гнездо» потребителя.
+
+    y_top / y_bot — границы компонентов (верхняя и нижняя); provider — с какой
+    стороны расположен компонент-поставщик интерфейса."""
+    r_ball, r_sock = 6.5, 10.0
+    ym = (y_top + y_bot) / 2
+    if provider == 'top':          # поставщик сверху: гнездо потребителя снизу
+        c.line([(x, y_top), (x, ym - r_ball)], fill=LINE, width=1.4)
+        c.arc(x, ym, r_sock, 0, 180, fill=LINE, width=1.5)
+        c.circle(x, ym, r_ball, fill='#ffffff', outline=LINE, width=1.3)
+        c.line([(x, ym + r_sock), (x, y_bot)], fill=LINE, width=1.4)
+        if name:
+            c.text(x + r_sock + 10, ym + 4, name, size, 'bold', '#1f2937')
+    else:                          # поставщик снизу: гнездо потребителя сверху
+        c.line([(x, y_bot), (x, ym + r_ball)], fill=LINE, width=1.4)
+        c.arc(x, ym, r_sock, 180, 360, fill=LINE, width=1.5)
+        c.circle(x, ym, r_ball, fill='#ffffff', outline=LINE, width=1.3)
+        c.line([(x, ym - r_sock), (x, y_top)], fill=LINE, width=1.4)
+        if name:
+            c.text(x + r_sock + 10, ym + 4, name, size, 'bold', '#1f2937')
+    return ym
+
+
+def subsystem_frame(c, x, y, w, h, name, stereo='subsystem', fill='#fcfdff'):
+    c.rect(x, y, w, h, fill=fill, outline='#94a3b8', width=1.4)
+    st = '«%s»' % stereo
+    tab = c.tw(st, 9.6) + c.tw(name, 12.2, 'bold') + 34
+    c.rect(x, y, tab, 26, fill='#eef2f7', outline='#94a3b8', width=1.2)
+    c.text(x + 10, y + 17, st, 9.6, 'normal', '#475569')
+    c.text(x + 18 + c.tw(st, 9.6), y + 18, name, 12.2, 'bold', '#1f2937')
+
+
 def component_diagram():
-    W, H = 2480, 1560
+    W, H = 2480, 1520
     c = Canvas(W, H, scale=2)
     title(c, 'Диаграмма компонентов — модульная структура портала Центра АНОК',
           'UML 2.5: компонент — прямоугольник с ключевым словом «component» и пиктограммой; '
-          'предоставляемый интерфейс — «шарик», требуемый — «гнездо»; вместе они образуют сборочный разъём.')
+          'сборочный разъём = «шарик» предоставляемого интерфейса, надетый в «гнездо» требуемого.')
 
-    # ---- клиент --------------------------------------------------------
-    component(c, 940, 120, 600, 160, 'PortalUI', lines=[
-        'Артефакты: portal/index.php (шаблоны), app.css, app.js',
-        'Chart.js · FullCalendar · DataTables · SheetJS (CDN)',
-        'Рендеринг HTML, переключение семестров 1–8, фильтрация',
+    # ---- граница подсистемы ---------------------------------------------
+    subsystem_frame(c, 46, 140, 2388, 1120, 'Портал Центра АНОК — прикладная подсистема')
+
+    # ---- 1. клиентский уровень ------------------------------------------
+    ux, uy, uw, uh = 890, 186, 700, 150
+    component(c, ux, uy, uw, uh, 'PortalUI', lines=[
+        'Артефакты: portal/index.php (шаблоны), assets/app.css, assets/app.js',
+        'Chart.js · FullCalendar · DataTables · SheetJS (CDN или assets/vendor)',
+        'Рендеринг HTML, переключение семестров 1–8, фильтрация таблиц',
     ], fill='#e8f1fe')
-    s1 = socket(c, 1120, 280)
-    s2 = socket(c, 1380, 280)
 
-    # ---- ядро HTTP -----------------------------------------------------
-    ky, kh = 330, 154
-    component(c, 80, ky, 2320, kh, 'HttpKernel — маршрутизатор и контроллеры', lines=[
-        'Диспетчеризация страниц: dashboard · plans · plan · analytics · validate · signatures · memos · '
-        'programs · competencies · standards · departments · announcements · audit · sitemap',
+    # ---- 2. ядро HTTP ----------------------------------------------------
+    ky, kh = 426, 150
+    component(c, 80, ky, 2320, kh, 'HttpKernel — маршрутизация и контроллеры', lines=[
+        'Страницы: dashboard · plans · plan · analytics · validate · signatures · memos · programs · '
+        'competencies · standards · departments · announcements · audit · sitemap',
         'REST-эндпоинты: /api/stats · /api/plans · /api/announcements · /api/audit',
         'Аутентификация, ролевая авторизация (RoleCode), проверка CSRF-токена формы',
     ], fill='#eef2fb')
-    for (x, y_out, nm) in ((1120, s1, 'IPortalPages'), (1380, s2, 'IRestApi')):
-        c.line([(x, ky), (x, ky - 12)], fill=LINE, width=1.2)
-        ball(c, x, ky - 18)
-        c.text(x + 12, ky - 20, nm, 10.0, 'bold', '#1f2937')
-        c.line([(x, ky - 24), (x, y_out[1])], fill=LINE, width=1.4)
+    # PortalUI требует IPortalPages и IRestApi — их предоставляет HttpKernel (снизу)
+    assembly(c, 1100, uy + uh, ky, 'IPortalPages', provider='bottom')
+    assembly(c, 1380, uy + uh, ky, 'IRestApi', provider='bottom')
 
-    # ---- сервисы --------------------------------------------------------
-    sy, sh = 700, 170
+    # ---- 3. сервисы бизнес-логики ---------------------------------------
+    sy, sh = 756, 168
     services = [
         (80, 'CurriculumService', ['расчёт кредитов и часов', 'баланс семестра 30 з.е.',
                                    'сумма 1080 академических часов']),
@@ -457,29 +490,20 @@ def component_diagram():
              'IMemoProcessing', 'IAuditSink']
     for (x, nm, lines), cx, ifn in zip(services, xml, iface):
         component(c, x, sy, 420, sh, nm, lines=lines, fill='#f3f0fd')
-        # сборочный разъём: гнездо ядра — линия — шарик сервиса
-        y_sock = socket(c, cx, ky + kh, side='bottom')[1]
-        c.line([(cx, sy - 24), (cx, sy)], fill=LINE, width=1.2)
-        ball(c, cx, sy - 18)
-        c.line([(cx, y_sock), (cx, sy - 24)], fill=LINE, width=1.4)
-        c.text(cx + 12, sy - 28, ifn, 10.0, 'bold', '#1f2937')
-        socket(c, cx, sy + sh, side='bottom')
+        assembly(c, cx, ky + kh, sy, ifn, provider='bottom')
 
-    # ---- слой доступа к данным -----------------------------------------
-    dy, dh = 1080, 150
+    # ---- 4. слой доступа к данным ---------------------------------------
+    dy, dh = 1076, 140
     component(c, 80, dy, 2320, dh, 'DataAccessLayer — PDO / SQLite (prepared statements)',
               lines=['Параметризованные запросы (prepare/execute) — защита от SQL-инъекций',
                      'Транзакции ACID, внешние ключи (FOREIGN KEY), режим WAL для SQLite',
                      'Единый интерфейс доступа: MySQL/MariaDB (PDO) и SQLite (portal.db)'],
               fill='#eaf5ec')
     for cx in xml:
-        c.line([(cx, dy - 24), (cx, dy)], fill=LINE, width=1.2)
-        ball(c, cx, dy - 18)
-        c.line([(cx, sy + sh + 14), (cx, dy - 24)], fill=LINE, width=1.4)
-        c.text(cx + 12, dy - 28, 'IPersistence', 10.0, 'bold', '#1f2937')
+        assembly(c, cx, sy + sh, dy, 'IPersistence', provider='bottom')
 
-    # ---- база данных (цилиндр) -----------------------------------------
-    dbx, dby, dbw, dbh = 960, 1280, 560, 130
+    # ---- 5. внешнее хранилище -------------------------------------------
+    dbx, dby, dbw, dbh = 950, 1322, 580, 128
     c.d.ellipse([dbx * c.s, dby * c.s, (dbx + dbw) * c.s, (dby + 26) * c.s],
                 fill='#fdf4e3', outline=LINE, width=3)
     c.rect(dbx, dby + 13, dbw, dbh - 26, fill='#fdf4e3', outline=None)
@@ -487,40 +511,45 @@ def component_diagram():
     c.line([(dbx + dbw, dby + 13), (dbx + dbw, dby + dbh - 13)], fill=LINE, width=1.4)
     c.d.arc([dbx * c.s, (dby + dbh - 26) * c.s, (dbx + dbw) * c.s, (dby + dbh) * c.s],
             0, 180, fill=LINE, width=4)
-    c.text(dbx + dbw / 2, dby + 50, '«database» anok_portal', 13, 'bold', INK, anchor='ms')
-    c.text(dbx + 20, dby + 74, '13 таблиц · 3NF · utf8mb4', 10.4, 'normal', '#374151')
-    c.text(dbx + 20, dby + 94, 'schema.sql / seed.sql · индексы по внешним ключам', 10.4,
+    c.text(dbx + dbw / 2, dby + 52, '«database» anok_portal', 13, 'bold', INK, anchor='ms')
+    c.text(dbx + 22, dby + 74, '13 таблиц · 3NF · utf8mb4', 10.4, 'normal', '#374151')
+    c.text(dbx + 22, dby + 94, 'schema.sql / seed.sql · индексы по внешним ключам', 10.4,
            'normal', '#374151')
-    c.line([(1240, dy + dh), (1240, dby)], fill=LINE, width=1.3)
+    c.line([(1240, dy + dh), (1240, dby)], fill=LINE, width=1.3, dash=(7, 5))
     c.arrowhead((1240, dby), (1240, dy + dh), 'open', LINE, 10)
-    c.text(1256, (dy + dh + dby) / 2 - 8, '«use» SQL DDL / DML', 10.2, 'italic', '#374151')
-    c.text(1256, (dy + dh + dby) / 2 + 8, '(prepared statements)', 10.2, 'italic', '#374151')
+    c.text(1256, (dy + dh + dby) / 2 - 9, '«use» SQL DDL / DML', 10.2, 'italic', '#374151')
+    c.text(1256, (dy + dh + dby) / 2 + 7, '(prepared statements)', 10.2, 'italic', '#374151')
 
     # ---- примечание и легенда -------------------------------------------
-    note(c, 80, 1290, 800, [
-        'Все вызовы бизнес-логики журналируются через IAuditSink (AuditLogger);',
-        'запросы к БД выполняются только через DataAccessLayer подготовленными',
-        'выражениями, строковые параметры передаются отдельно от текста SQL.'], fill='#fffdf0')
+    note(c, 80, 1300, 800, [
+        'Хранилище «database» вне подсистемы: доступ к нему — только через',
+        'DataAccessLayer подготовленными выражениями. Все вызовы бизнес-логики',
+        'журналируются через IAuditSink (AuditLogger).'], fill='#fffdf0')
 
-    lx, ly, lw, lh = 1620, 1260, 780, 200
+    lx, ly, lw, lh = 1620, 1296, 800, 210
     legend_box(c, lx, ly, lw, lh, 'Условные обозначения')
     yy = ly + 38
     _comp_icon(c, lx + 22, yy - 12)
     c.text(lx + 70, yy, 'компонент (модуль системы)', 10.6, 'normal', '#374151')
-    yy += 36
-    c.line([(lx + 22, yy), (lx + 52, yy)], fill=LINE, width=1.2)
-    ball(c, lx + 58, yy)
-    c.text(lx + 80, yy + 4, 'предоставляемый интерфейс (шарик)', 10.6, 'normal', '#374151')
-    yy += 36
-    socket(c, lx + 52, yy, side='right')
-    c.text(lx + 80, yy + 4, 'требуемый интерфейс (гнездо)', 10.6, 'normal', '#374151')
-    yy += 36
-    c.line([(lx + 22, yy), (lx + 90, yy)], fill=LINE, width=1.2)
-    c.arrowhead((lx + 90, yy), (lx + 22, yy), 'open', LINE, 9)
-    c.text(lx + 110, yy + 4, 'зависимость «use» (пунктир, открытая стрелка)', 10.6, 'normal', '#374151')
     yy += 34
-    c.text(lx + 22, yy + 4, 'Сборочный разъём = «гнездо» потребителя + «шарик» поставщика.',
-           10.4, 'normal', MUTED)
+    cy = yy - 6
+    c.line([(lx + 22, cy), (lx + 44, cy)], fill=LINE, width=1.3)
+    c.arc(lx + 50, cy, 11.5, 270, 90, fill=LINE, width=1.4)
+    c.circle(lx + 50, cy, 6, fill='#ffffff', outline=LINE, width=1.2)
+    c.line([(lx + 61, cy), (lx + 86, cy)], fill=LINE, width=1.3)
+    c.text(lx + 100, cy + 5, 'сборочный разъём (шарик в гнезде)', 10.6, 'normal', '#374151')
+    yy += 38
+    c.line([(lx + 22, yy - 6), (lx + 52, yy - 6)], fill=LINE, width=1.3)
+    c.circle(lx + 58, yy - 6, 6, fill='#ffffff', outline=LINE, width=1.2)
+    c.text(lx + 78, yy - 2, 'предоставляемый интерфейс (шарик)', 10.6, 'normal', '#374151')
+    yy += 34
+    c.line([(lx + 22, yy - 6), (lx + 46, yy - 6)], fill=LINE, width=1.3)
+    c.arc(lx + 58, yy - 6, 9, 90, 270, fill=LINE, width=1.4)
+    c.text(lx + 78, yy - 2, 'требуемый интерфейс (гнездо)', 10.6, 'normal', '#374151')
+    yy += 32
+    c.line([(lx + 22, yy), (lx + 90, yy)], fill=LINE, width=1.2, dash=(7, 5))
+    c.arrowhead((lx + 90, yy), (lx + 22, yy), 'open', LINE, 9)
+    c.text(lx + 104, yy + 4, 'зависимость «use» (пунктир, открытая стрелка)', 10.6, 'normal', '#374151')
 
     c.save(os.path.join(OUT, 'component_diagram.png'))
 
