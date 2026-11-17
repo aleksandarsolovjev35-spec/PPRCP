@@ -38,7 +38,7 @@ PAD = 7.0
 
 
 def _measure_class(spec, w):
-    h = HDR + (14 if spec.get('stereo') else 0) + PAD
+    h = HDR + (14 if spec.get('stereo') else 0) + (15 if spec.get('ru') else 0) + PAD
     h += len(spec['attrs']) * LH + 5
     h += len(spec['ops']) * LH + 14
     return h
@@ -47,9 +47,9 @@ def _measure_class(spec, w):
 def draw_class(c, x, y, w, spec):
     stereo = spec.get('stereo')
     h = _measure_class(spec, w)
-    hdr_h = HDR + (14 if stereo else 0)
+    hdr_h = HDR + (14 if stereo else 0) + (15 if spec.get('ru') else 0)
     c.rect(x, y, w, h, fill='#ffffff', outline=LINE, width=1.4)
-    c.rect(x + 1, y + 1, w - 2.2, hdr_h - 1.6, fill=HEAD_FILL, outline=None)
+    c.rect(x + 1, y + 1, w - 2.2, hdr_h - 1.6, fill='#f2f2f2', outline=None)
     c.line([(x, y + hdr_h), (x + w, y + hdr_h)], fill=LINE, width=1.2)
     cy = y + 15
     if stereo:
@@ -57,6 +57,8 @@ def draw_class(c, x, y, w, spec):
         cy += 14
     weight = 'bolditalic' if spec.get('abstract') else 'bold'
     c.text(x + w / 2, cy + 12, spec['name'], F_NAME, weight, INK, anchor='ms')
+    if spec.get('ru'):
+        c.text(x + w / 2, cy + 27, spec['ru'], 9.6, 'italic', '#374151', anchor='ms')
     ay = y + hdr_h + PAD + LH * 0.70
     for a in spec['attrs']:
         c.text_clip(x + 11, ay, a, w - 22, F_MEMBER, 'normal', '#1f2937')
@@ -124,7 +126,26 @@ def _auto_labels(c, pts, m0=None, m1=None, r0=None, r1=None,
     place(pts[-1], pts[-2], m1, r1, m1_at, r1_at)
 
 
-def class_diagram():
+CLASS_RU = {
+    'StandardFGOS': 'стандарт ФГОС ВО',
+    'EducationalProgram': 'образовательная программа',
+    'Curriculum': 'учебный план',
+    'CurriculumDiscipline': 'дисциплина плана',
+    'Department': 'кафедра',
+    'Competency': 'компетенция',
+    'Document': 'документ (абстрактный)',
+    'DocumentSignature': 'виза / подпись',
+    'User': 'пользователь',
+    'Role': 'роль доступа',
+    'AuditLog': 'запись журнала аудита',
+    'Announcement': 'объявление',
+    'ServiceNote': 'служебная записка',
+    'ServiceNoteItem': 'позиция записки',
+}
+
+
+def class_diagram(lang=None):
+    lang = lang or COMP_LANG
     W = 2600
     COLS = [50, 580, 1110, 1640, 2170]
     BW = 400
@@ -208,6 +229,9 @@ def class_diagram():
         'Announcement': (1, 2), 'ServiceNote': (2, 2), 'ServiceNoteItem': (3, 2),
         'Role': (4, 2),
     }
+    if lang == 'ru':
+        for _n, _sp in specs.items():
+            _sp['ru'] = CLASS_RU.get(_n)
     row_y = [150]
     geo, row_h = {}, {}
     for row in range(3):
@@ -219,11 +243,10 @@ def class_diagram():
         if row < 2:
             row_y.append(row_y[row] + row_h[row] + 132)
     bottom = row_y[2] + row_h[2]
-    H = bottom + 340
+    H = bottom + 170
     c = Canvas(W, H, scale=2)
-    title(c, 'Диаграмма классов — объектная модель портала Центра АНОК (UML 2.5)',
-          'Видимость членов: + public, − private. Кратности указаны на концах связей; '
-          'ромб у класса-«целого» — композиция; треугольник — генерализация.')
+    title(c, 'Диаграмма классов — объектная модель портала Центра АНОК'
+             if lang == 'ru' else 'Class Diagram — ANOK Center Portal domain model')
 
     for name, (x, y, w, h) in geo.items():
         draw_class(c, x, y, w, specs[name])
@@ -240,6 +263,18 @@ def class_diagram():
     def B(n, t=0.5):
         x, y, w, h = geo[n]; return (x + w * t, y + h)
 
+    def RY(n, y):
+        x, y0, w, h = geo[n]; return (x + w, y)
+
+    def LY(n, y):
+        x, y0, w, h = geo[n]; return (x, y)
+
+    def row_y_for(n1, n2, t=0.42):
+        """Общая высота концов связи — без диагоналей между классами разной высоты."""
+        x1, y1, w1, h1 = geo[n1]
+        x2, y2, w2, h2 = geo[n2]
+        return min(y1, y2) + t * min(h1, h2)
+
     def assoc(pts, start=None, end=None, dash=None, **lab):
         c.line(pts, fill=LINE, width=1.3, dash=dash)
         if start:
@@ -249,10 +284,12 @@ def class_diagram():
         _auto_labels(c, pts, **lab)
 
     # 1. StandardFGOS 1 —— 1..* EducationalProgram
-    assoc([R('StandardFGOS', 0.42), L('EducationalProgram', 0.42)],
+    _y = row_y_for('StandardFGOS', 'EducationalProgram')
+    assoc([RY('StandardFGOS', _y), LY('EducationalProgram', _y)],
           m0='1', r0='standard', m1='0..*', r1='programs')
     # 2. EducationalProgram 1 —— 1..* Curriculum
-    assoc([R('EducationalProgram', 0.62), L('Curriculum', 0.62)],
+    _y = row_y_for('EducationalProgram', 'Curriculum', 0.55)
+    assoc([RY('EducationalProgram', _y), LY('Curriculum', _y)],
           m0='1', r0='program', m1='0..*', r1='curriculums')
     # 3. EducationalProgram ◆—— 0..* Competency
     assoc([B('EducationalProgram', 0.5), T('Competency', 0.5)],
@@ -269,16 +306,19 @@ def class_diagram():
     # 5. Curriculum ◁—— Document
     assoc([B('Curriculum', 0.5), T('Document', 0.5)], start='hollow')
     # 6. Document ◆—— 1..* DocumentSignature
-    assoc([R('Document', 0.55), L('DocumentSignature', 0.55)],
+    _y = row_y_for('Document', 'DocumentSignature', 0.45)
+    assoc([RY('Document', _y), LY('DocumentSignature', _y)],
           start='diamond_filled', m0='1', m1='1..*', r1='signatures')
     # 7. Document ◁—— ServiceNote
     assoc([B('Document', 0.5), T('ServiceNote', 0.5)], start='hollow')
     # 8. Curriculum ◆—— 1..* CurriculumDiscipline
-    assoc([R('Curriculum', 0.8), L('CurriculumDiscipline', 0.8)],
+    _y = row_y_for('Curriculum', 'CurriculumDiscipline', 0.72)
+    assoc([RY('Curriculum', _y), LY('CurriculumDiscipline', _y)],
           start='diamond_filled', m0='1', m1='1..*', r1='disciplines')
     # 9. CurriculumDiscipline 0..* —— 1 Department
-    _d9 = R('CurriculumDiscipline', 0.34)
-    _l9 = L('Department', 0.34)
+    _y9 = row_y_for('CurriculumDiscipline', 'Department', 0.3)
+    _d9 = RY('CurriculumDiscipline', _y9)
+    _l9 = LY('Department', _y9)
     assoc([_d9, _l9], m0='0..*', r0='implementing',
           m0_at=(_d9[0] + 8, _d9[1] - 8),
           r0_at=(_l9[0] - 8, _l9[1] - 8, 'rs'))
@@ -301,7 +341,8 @@ def class_diagram():
           m0_at=(d2[0] - 8, d2[1] - 8, 'rs'),
           m1_at=(s2[0] + 10, y_ch2 - 9), r1_at=(s2[0] + 10, y_ch2 + 16))
     # 12. ServiceNote ◆—— 1..* ServiceNoteItem
-    assoc([R('ServiceNote', 0.5), L('ServiceNoteItem', 0.5)],
+    _y = row_y_for('ServiceNote', 'ServiceNoteItem', 0.42)
+    assoc([RY('ServiceNote', _y), LY('ServiceNoteItem', _y)],
           start='diamond_filled', m0='1', m1='1..*', r1='items')
     # 13. ServiceNoteItem 0..* —— 1 CurriculumDiscipline (канал между колонками 2/3)
     chx = COLS[2] + BW + 38
@@ -310,58 +351,15 @@ def class_diagram():
     cdb = B('CurriculumDiscipline', 0.78)
     assoc([sni, (chx, sni[1]), (chx, chy), (cdb[0], chy), cdb],
           m0='0..*', r0='discipline', m1='1',
-          m0_at=(chx + 8, sni[1] - 10), r0_at=(chx + 8, sni[1] + 20),
+          m0_at=(chx + 20, sni[1] - 9), r0_at=(chx + 20, sni[1] + 16),
           m1_at=(cdb[0] + 8, chy + 16))
     # 14. User 0..* —— 1 Role
     assoc([B('User', 0.42), T('Role', 0.42)], m0='0..*', r0='role', m1='1')
     # 15. User 0..* —— 0..1 Department
     assoc([T('User', 0.66), B('Department', 0.66)], m0='0..*', r0='department', m1='0..1')
 
-    # ------------------------------------------------------------ примечания
-    ax, ay, aw, ah = geo['AuditLog']
-    ny = bottom + 30
-    note(c, ax + 10, ny, 400, [
-        'Журнал append-only. ФИО и роль фиксируются',
-        'снимком (user_name, user_role), внешний ключ',
-        'на users не объявляется — см. audit_logs',
-        'в portal/database/schema.sql.'], fill='#fffdf0')
-    c.line([(ax + 200, ay + ah), (ax + 200, ny)], fill='#8a6d00', width=1.0, dash=(6, 4))
-
-    an, ay2, aw2, ah2 = geo['Announcement']
-    note(c, an + 10, ay2 + ah2 + 30, 390, [
-        'authorName — денормализованный снимок',
-        'автора публикации; связь с users',
-        'не объявляется (в DDL внешнего ключа нет).'], fill='#fffdf0')
-    c.line([(an + 180, ay2 + ah2), (an + 180, ay2 + ah2 + 30)], fill='#8a6d00',
-           width=1.0, dash=(6, 4))
-
-    # ------------------------------------------------------------- легенда
-    lx, ly, lw, lh = COLS[3] + 30, bottom + 118, 500, 200
-    legend_box(c, lx, ly, lw, lh, 'Notation')
-    yy = ly + 36
-    rows = [('assoc', 'ассоциация (направление навигации не задано)'),
-            ('comp', 'композиция: часть существует только в целом'),
-            ('gen', 'генерализация: Curriculum и ServiceNote — виды Document'),
-            ('note', 'примечание UML')]
-    for kind, text in rows:
-        if kind == 'assoc':
-            c.line([(lx + 18, yy), (lx + 80, yy)], fill=LINE, width=1.3)
-        elif kind == 'comp':
-            c.line([(lx + 18, yy), (lx + 80, yy)], fill=LINE, width=1.3)
-            c.arrowhead((lx + 18, yy), (lx + 80, yy), 'diamond_filled', LINE, 8)
-        elif kind == 'gen':
-            c.line([(lx + 18, yy), (lx + 80, yy)], fill=LINE, width=1.3)
-            c.arrowhead((lx + 18, yy), (lx + 80, yy), 'hollow', LINE, 8)
-        else:
-            c.poly([(lx + 18, yy - 8), (lx + 62, yy - 8), (lx + 80, yy + 8),
-                    (lx + 18, yy + 8)], fill='#fffdf0', outline='#8a6d00', width=1.0)
-        c.text(lx + 94, yy + 4, text, 10.6, 'normal', '#374151')
-        yy += 31
-    c.text(lx + 18, yy + 8, 'Кратности: «1» — ровно один; «0..1» — ноль или один;', 10.2, 'normal', MUTED)
-    c.text(lx + 18, yy + 24, '«1..*», «0..*» — множество экземпляров;', 10.2, 'normal', MUTED)
-    c.text(lx + 18, yy + 40, '{id} — первичный ключ; {1..8} — ограничение значения.', 10.2, 'normal', MUTED)
-
-    c.save(os.path.join(OUT, 'class_diagram.png'))
+    fname = 'class_diagram.png' if lang == COMP_LANG else 'class_diagram_%s.png' % lang
+    c.save(os.path.join(OUT, fname))
 
 
 
@@ -1189,7 +1187,8 @@ def db_schema_diagram():
 
 
 if __name__ == '__main__':
-    class_diagram()
+    class_diagram('ru')
+    class_diagram('en')
     component_diagram('ru')
     component_diagram('en')
     deployment_diagram('ru')
