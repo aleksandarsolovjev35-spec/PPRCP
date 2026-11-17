@@ -48,6 +48,7 @@ def draw_class(c, x, y, w, spec):
     stereo = spec.get('stereo')
     h = _measure_class(spec, w)
     hdr_h = HDR + (14 if stereo else 0) + (15 if spec.get('ru') else 0)
+    GEOM['boxes'].append((spec['name'], x, y, x + w, y + h))
     c.rect(x, y, w, h, fill='#ffffff', outline=LINE, width=1.4)
     c.rect(x + 1, y + 1, w - 2.2, hdr_h - 1.6, fill='#f2f2f2', outline=None)
     c.line([(x, y + hdr_h), (x + w, y + hdr_h)], fill=LINE, width=1.2)
@@ -72,6 +73,13 @@ def draw_class(c, x, y, w, spec):
     return h
 
 
+GEOM = {'boxes': [], 'polys': [], 'labels': []}
+
+
+def _geom_reset():
+    GEOM['boxes'], GEOM['polys'], GEOM['labels'] = [], [], []
+
+
 def _lab(c, x, y, text, anchor='ls', size=F_MULT, fill='#111827', weight='normal'):
     """Подпись с белой подложкой (чтобы линия не пересекала текст)."""
     w = c.tw(text, size, weight)
@@ -84,6 +92,7 @@ def _lab(c, x, y, text, anchor='ls', size=F_MULT, fill='#111827', weight='normal
     c.d.rectangle([x0 * c.s - 2.5 * c.s, (y - size * 0.95) * c.s - 1,
                    (x0 + w) * c.s + 2.5 * c.s, (y + size * 0.32) * c.s + 1], fill='#ffffff')
     c.text(x, y, text, size, weight, fill, anchor=anchor)
+    GEOM['labels'].append((text, x0 - 2.5, y - size * 0.95, x0 + w + 2.5, y + size * 0.32))
 
 
 def _auto_labels(c, pts, m0=None, m1=None, r0=None, r1=None,
@@ -145,6 +154,7 @@ CLASS_RU = {
 
 
 def class_diagram(lang=None):
+    _geom_reset()
     lang = lang or COMP_LANG
     W = 2600
     COLS = [50, 580, 1110, 1640, 2170]
@@ -276,6 +286,7 @@ def class_diagram(lang=None):
         return min(y1, y2) + t * min(h1, h2)
 
     def assoc(pts, start=None, end=None, dash=None, **lab):
+        GEOM['polys'].append(list(pts))
         c.line(pts, fill=LINE, width=1.3, dash=dash)
         if start:
             c.arrowhead(pts[0], pts[1], start, LINE, 10)
@@ -413,6 +424,7 @@ def assembly(c, x, y_top, y_bot, name=None, provider='top', size=11.0):
     стороны расположен компонент-поставщик интерфейса."""
     r_ball, r_sock = 6.5, 10.0
     ym = (y_top + y_bot) / 2
+    GEOM['polys'].append([(x, y_top), (x, ym), (x, y_bot)])
     if provider == 'top':          # поставщик сверху: гнездо потребителя снизу
         c.line([(x, y_top), (x, ym - r_ball)], fill=LINE, width=1.4)
         c.arc(x, ym, r_sock, 0, 180, fill=LINE, width=1.5)
@@ -443,6 +455,7 @@ def component_slim(c, x, y, w, h, name, stereo='component', fill='#ffffff', name
                    sub=None):
     """Компонент UML 2.5: ключевое слово, имя, пиктограмма и строка расшифровки."""
     c.rect(x, y, w, h, fill=fill, outline=LINE, width=1.4)
+    GEOM['boxes'].append((name, x, y, x + w, y + h))
     c.text(x + w / 2 - 10, y + 20, '«%s»' % stereo, 9.8, 'normal', '#1f2937', anchor='ms')
     c.text(x + w / 2 - 10, y + 42, name, name_size, 'bold', INK, anchor='ms')
     if sub:
@@ -513,6 +526,7 @@ COMP_TEXTS = {
 
 
 def component_diagram(lang=None):
+    _geom_reset()
     lang = lang or COMP_LANG
     T = COMP_TEXTS[lang]
     W, H = 1880, (1180 if COMP_HELPERS else 1010)
@@ -606,6 +620,7 @@ def node3d(c, x, y, w, h, stereo, name, depth=16, sk=11, fill='#ffffff',
            top='#f1f1f1', side='#e2e2e2'):
     """Узел UML 2.5 — трёхмерный блок (перспектива куба)."""
     c.rect(x, y, w, h, fill=fill, outline=LINE, width=1.5)
+    GEOM['boxes'].append((name or 'node', x, y, x + w, y + h))
     c.poly([(x, y), (x + sk, y - depth), (x + w + sk, y - depth), (x + w, y)],
            fill=top, outline=LINE, width=1.3)
     c.poly([(x + w, y), (x + w + sk, y - depth), (x + w + sk, y + h - depth), (x + w, y + h)],
@@ -619,6 +634,7 @@ def node3d(c, x, y, w, h, stereo, name, depth=16, sk=11, fill='#ffffff',
 def env(c, x, y, w, h, stereo, name, sub=None):
     """Среда исполнения: узел «executionEnvironment» (вложенный в устройство)."""
     c.rect(x, y, w, h, fill='#ffffff', outline='#374151', width=1.3)
+    GEOM['boxes'].append((name, x, y, x + w, y + h))
     c.text(x + 12, y + 18, '«%s»' % stereo, 9.2, 'normal', '#374151')
     c.text(x + 12, y + 34, name, 11.4, 'bold', '#111827')
     if sub:
@@ -630,6 +646,7 @@ def artifact(c, x, y, w, h, name, lines=()):
     fold = 12
     c.poly([(x, y), (x + w - fold, y), (x + w, y + fold), (x + w, y + h), (x, y + h)],
            fill='#ffffff', outline=LINE, width=1.2)
+    GEOM['boxes'].append((name, x, y, x + w, y + h))
     c.poly([(x + w - fold, y), (x + w - fold, y + fold), (x + w, y + fold)],
            fill='#f1f1f1', outline=LINE, width=1.0)
     c.text(x + 10, y + 15, '«artifact»', 8.8, 'normal', '#374151')
@@ -679,6 +696,7 @@ DEP_TEXTS = {
 
 
 def deployment_diagram(lang=None):
+    _geom_reset()
     lang = lang or COMP_LANG
     T = DEP_TEXTS[lang]
     W, H = 1840, 660
@@ -703,7 +721,8 @@ def deployment_diagram(lang=None):
     artifact(c, 1464, 276, 272, 110, T['dbart'], T['dbart_l'])
 
     # ---------------- пути связи -----------------------------------------
-    for x0, x1, lab in ((491, 700, T['p1']), (1211, 1420, T['p2'])):
+    for x0, x1, lab in ((480, 700, T['p1']), (1200, 1420, T['p2'])):
+        GEOM['polys'].append([(x0, 320), (x1, 320)])
         c.line([(x0, 320), (x1, 320)], fill=LINE, width=1.6)
         xm = (x0 + x1) / 2
         c.text(xm, 306, lab[0], 9.8, 'bold', '#111827', anchor='ms')
@@ -771,6 +790,7 @@ class Seq:
             else:
                 stereo, name = head[1], head[2]
                 w, h = 190, 44
+                GEOM['boxes'].append((name, x - w / 2, self.top - 6, x + w / 2, self.top + h - 6))
                 c.rect(x - w / 2, self.top - 6, w, h, fill='#eef2fb', outline=LINE, width=1.4)
                 c.text(x, self.top + 8, '«%s»' % stereo, 9.2, 'normal', '#4b5563', anchor='ms')
                 c.text(x, self.top + 26, name, 11.0, 'bold', INK, anchor='ms')
@@ -811,6 +831,7 @@ class Seq:
             if it[0] == 'msg':
                 _, a, b, kind, y, text = it
                 x1, x2 = self.xs[a], self.xs[b]
+                GEOM['polys'].append([(x1, y), (x2, y)])
                 if kind == 'sync':
                     c.line([(x1, y), (x2, y)], fill=LINE, width=1.4)
                     c.arrowhead((x2, y), (x1, y), 'filled', LINE, 10)
@@ -914,6 +935,7 @@ def _build_sequence(c, top, bottom):
 
 
 def sequence_diagram():
+    _geom_reset()
     W = 2760
     top = 120
     tmp = Canvas(200, 200)
@@ -996,6 +1018,8 @@ def er_end(c, pt, toward, kind, label=None, lab_off=(0, 0), lab_anchor='ls'):
         c.d.rectangle([lx * c.s - 2, (ly - 10) * c.s, (lx + w) * c.s + 2, (ly + 2) * c.s],
                       fill='#ffffff')
         c.text(lx, ly, label, 9.6, 'normal', '#111827', anchor=lab_anchor)
+        x0 = lx - w - 2 if lab_anchor[0] == 'r' else lx - 2
+        GEOM['labels'].append((label, x0, ly - 10, x0 + w + 4, ly + 2))
 
 
 def db_schema_diagram():
@@ -1078,8 +1102,11 @@ def db_schema_diagram():
           'обычный — допускает NULL; «воронья лапка» — сторона «многие», кружок — необязательность связи.')
 
     geo = {}
+    _geom_reset()
     for name, (col, r, cols) in tables.items():
         geo[name] = er_table(c, COLS[col], row_y[r], BW, name, cols)
+    GEOM['boxes'] = [(n, g['x'], g['y'], g['x'] + g['w'], g['y'] + g['h'])
+                     for n, g in geo.items()]
 
     def rowy(t, col):
         return geo[t]['rows'][col]
@@ -1097,6 +1124,7 @@ def db_schema_diagram():
         return geo[t]['y'] + geo[t]['h']
 
     def er(pts, child_end=None, parent_end=None, c_labs=(), p_labs=()):
+        GEOM['polys'].append(list(pts))
         c.line(pts, fill='#334155', width=1.3)
         if child_end:
             er_end(c, pts[0], pts[1], child_end, *c_labs)
@@ -1110,7 +1138,7 @@ def db_schema_diagram():
     # 2. curriculums.program_id → educational_programs.id
     y = rowy('curriculums', 'program_id')
     er([(Ledge('curriculums'), y), (Redge('educational_programs'), y)],
-       'zero-many', 'zero-one', c_labs=('0..*', (8, -8)), p_labs=('0..1', (8, -8)))
+       'zero-many', 'zero-one', c_labs=('0..*', (-38, -8)), p_labs=('0..1', (8, -8)))
     # 3. educational_programs.department_id → departments.id (верхний канал, y = 142)
     er([(Ledge('educational_programs') + 240, Top('educational_programs')),
         (Ledge('educational_programs') + 240, 142),
@@ -1122,8 +1150,8 @@ def db_schema_diagram():
        'zero-one', 'zero-many', p_labs=('0..1', (-42, -10)), c_labs=('0..*', (10, -10)))
     # 5. curriculum_disciplines.implementing_department_id → departments.id
     y = rowy('curriculum_disciplines', 'implementing_department_id')
-    er([(Ledge('curriculum_disciplines'), y), (Redge('departments'), y)],
-       'zero-many', 'zero-one', c_labs=('0..*', (-38, -8)), p_labs=('0..1', (7, -8)))
+    er([(Ledge('curriculum_disciplines'), y), (1890, y), (1890, Bot('departments'))],
+       'zero-many', 'zero-one', c_labs=('0..*', (-38, -8)), p_labs=('0..1', (8, 15)))
     # 6. competencies.program_id → educational_programs.id (канал между столбцами 0 и 1)
     yco = rowy('competencies', 'program_id')
     yp = rowy('educational_programs', 'id')
@@ -1133,17 +1161,18 @@ def db_schema_diagram():
        'zero-many', 'zero-one', c_labs=('0..*', (7, -8)), p_labs=('0..1', (-38, -8)))
     # 7. users.role_id → roles.id
     y = rowy('users', 'role_id')
-    er([(Ledge('users'), y), (Redge('roles'), y)],
+    yr = rowy('roles', 'id')
+    er([(Ledge('users'), y), (1010, y), (1010, yr), (Redge('roles'), yr)],
        'zero-many', 'zero-one', c_labs=('0..*', (-38, -8)), p_labs=('0..1', (7, -8)))
     # 8. users.department_id → departments.id (через межстрочный канал)
     gy8 = row_y[0] + row_h[0] + 40
     er([(COLS[2] + 120, Top('users')), (COLS[2] + 120, gy8),
         (COLS[3] + 90, gy8), (COLS[3] + 90, Bot('departments'))],
-       'zero-many', 'zero-one', c_labs=('0..*', (-38, -10)), p_labs=('0..1', (8, 15)))
+       'zero-many', 'zero-one', c_labs=('0..*', (-38, -10)), p_labs=('0..1', (-40, 15)))
     # 9. service_notes.curriculum_id → curriculums.id (через канал под строкой 1)
     gy9 = row_y[0] + row_h[0] + 76
     er([(Ledge('service_notes'), rowy('service_notes', 'curriculum_id')),
-        (COLS[3] - 30, rowy('service_notes', 'curriculum_id')), (COLS[3] - 30, gy9),
+        (COLS[3] - 90, rowy('service_notes', 'curriculum_id')), (COLS[3] - 90, gy9),
         (COLS[2] + 250, gy9), (COLS[2] + 250, Bot('curriculums'))],
        'zero-many', 'zero-one', c_labs=('0..*', (-38, -8)), p_labs=('0..1', (8, 15)))
     # 10. service_notes.releasing_dept_id → departments.id
