@@ -73,7 +73,7 @@ def draw_class(c, x, y, w, spec):
     return h
 
 
-GEOM = {'boxes': [], 'polys': [], 'labels': [], 'colors': []}
+GEOM = {'boxes': [], 'polys': [], 'labels': [], 'colors': [], 'ends': []}
 
 
 def _poly(pts, color=LINE, width=1.3):
@@ -83,7 +83,7 @@ def _poly(pts, color=LINE, width=1.3):
 
 
 def _geom_reset():
-    GEOM['boxes'], GEOM['polys'], GEOM['labels'], GEOM['colors'] = [], [], [], []
+    GEOM['boxes'], GEOM['polys'], GEOM['labels'], GEOM['colors'], GEOM['ends'] = [], [], [], [], []
 
 
 def _lab(c, x, y, text, anchor='ls', size=F_MULT, fill='#111827', weight='normal'):
@@ -293,6 +293,7 @@ def class_diagram(lang=None):
 
     def assoc(pts, start=None, end=None, dash=None, **lab):
         _poly(pts, LINE, 1.3)
+        GEOM['ends'].append((start, end))
         c.line(pts, fill=LINE, width=1.3, dash=dash)
         if start:
             c.arrowhead(pts[0], pts[1], start, LINE, 10)
@@ -310,9 +311,7 @@ def class_diagram(lang=None):
           m0='1', r0='program', m1='0..*', r1='curriculums')
     # 3. EducationalProgram ◆—— 0..* Competency
     assoc([B('EducationalProgram', 0.5), T('Competency', 0.5)],
-          start='diamond_filled', m0='1', m1='0..*', r1='competencies',
-          m1_at=(geo['Competency'][0] + BW + 8, geo['Competency'][1] - 8),
-          r1_at=(geo['Competency'][0] + BW + 8 + 46, geo['Competency'][1] - 8))
+          start='diamond_filled', m0='1', m1='0..*', r1='competencies')
     # 4. EducationalProgram 0..* —— 1 Department  (верхний канал)
     ch = row_y[0] - 56
     pa, pb = T('EducationalProgram', 0.22), T('Department', 0.24)
@@ -336,9 +335,10 @@ def class_diagram(lang=None):
     _y9 = row_y_for('CurriculumDiscipline', 'Department', 0.3)
     _d9 = RY('CurriculumDiscipline', _y9)
     _l9 = LY('Department', _y9)
-    assoc([_d9, _l9], m0='0..*', r0='implementing',
+    assoc([_d9, _l9], m0='0..*', r0='implementing', m1='1',
           m0_at=(_d9[0] + 8, _d9[1] - 8),
-          r0_at=(_l9[0] - 8, _l9[1] - 8, 'rs'))
+          r0_at=(_l9[0] - 8, _l9[1] + 16, 'rs'),
+          m1_at=(_l9[0] - 8, _l9[1] - 8, 'rs'))
     # 10. Department 1 —— 0..* ServiceNote (выпускающая кафедра)
     gx1 = COLS[3] + BW + 24
     y_ch = bottom + 44
@@ -355,7 +355,7 @@ def class_diagram(lang=None):
     s2 = B('ServiceNote', 0.58)
     assoc([d2, (gx2, d2[1]), (gx2, y_ch2), (s2[0], y_ch2), s2],
           m0='1', m1='0..*', r1='implementingNotes',
-          m0_at=(d2[0] - 8, d2[1] - 8, 'rs'),
+          m0_at=(d2[0] - 8, d2[1] + 16, 'rs'),
           m1_at=(s2[0] + 10, y_ch2 - 9), r1_at=(s2[0] + 10, y_ch2 + 16))
     # 12. ServiceNote ◆—— 1..* ServiceNoteItem
     _y = row_y_for('ServiceNote', 'ServiceNoteItem', 0.42)
@@ -368,8 +368,8 @@ def class_diagram(lang=None):
     cdb = B('CurriculumDiscipline', 0.78)
     assoc([sni, (chx, sni[1]), (chx, chy), (cdb[0], chy), cdb],
           m0='0..*', r0='discipline', m1='1',
-          m0_at=(chx + 20, sni[1] - 9), r0_at=(chx + 20, sni[1] + 16),
-          m1_at=(cdb[0] + 8, chy + 16))
+          m0_at=(sni[0] - 14, sni[1] - 9, 'rs'), r0_at=(sni[0] - 14, sni[1] + 16, 'rs'),
+          m1_at=(cdb[0] + 8, cdb[1] + 16))
     # 14. User 0..* —— 1 Role
     assoc([B('User', 0.42), T('Role', 0.42)], m0='0..*', r0='role', m1='1')
     # 15. User 0..* —— 0..1 Department
@@ -1129,6 +1129,7 @@ def db_schema_diagram():
 
     def er(pts, child_end=None, parent_end=None, c_labs=(), p_labs=()):
         _poly(pts, '#334155', 1.3)
+        GEOM['ends'].append((child_end, parent_end))
         c.line(pts, fill='#334155', width=1.3)
         if child_end:
             er_end(c, pts[0], pts[1], child_end, *c_labs)
@@ -1151,7 +1152,7 @@ def db_schema_diagram():
     # 4. curriculum_disciplines.curriculum_id → curriculums.id (верхний канал, y = 96)
     er([(COLS[2] + 150, Top('curriculums')), (COLS[2] + 150, 96),
         (COLS[4] + 160, 96), (COLS[4] + 160, Top('curriculum_disciplines'))],
-       'zero-one', 'zero-many', p_labs=('0..1', (-42, -10)), c_labs=('0..*', (10, -10)))
+       'zero-one', 'zero-many', c_labs=('0..1', (10, -10)), p_labs=('0..*', (-42, -10)))
     # 5. curriculum_disciplines.implementing_department_id → departments.id
     y = rowy('curriculum_disciplines', 'implementing_department_id')
     er([(Ledge('curriculum_disciplines'), y), (1890, y), (1890, Bot('departments'))],

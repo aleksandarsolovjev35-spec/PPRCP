@@ -77,6 +77,29 @@ def report(title, fn):
         print('    %s связи %s не лежит на рамке блока' % (tag, pt))
 
 
+EXPECT = {'zero-one': '0..1', 'zero-many': '0..*'}
+
+
+def report_ends(title, fn):
+    """Соответствие символа на конце связи (ER) подписи кратности у этого конца."""
+    import math
+    fn()
+    bad = []
+    for i, poly in enumerate(g.GEOM['polys']):
+        kinds = g.GEOM['ends'][i] if i < len(g.GEOM['ends']) else (None, None)
+        for k, (kind, pt) in enumerate(zip(kinds, (poly[0], poly[-1]))):
+            if kind not in EXPECT:
+                continue
+            want = EXPECT[kind]
+            labels = [lb[0] for lb in g.GEOM['labels']
+                      if math.hypot((lb[1] + lb[3]) / 2 - pt[0], (lb[2] + lb[4]) / 2 - pt[1]) <= 40]
+            if want not in labels:
+                bad.append((i + 1, 'начало' if k == 0 else 'конец', kind, want, labels))
+    print('%s: символов конца без своей кратности — %d' % (title, len(bad)))
+    for b in bad:
+        print('    связь %d, %s: символ %s ждёт «%s», рядом %s' % b)
+
+
 def report_crossings(title, fn):
     """Пересечения связей между собой (в плотной сетке полностью не устранимы)."""
     fn()
@@ -105,6 +128,7 @@ if __name__ == '__main__':
     report('развёртывание', lambda: g.deployment_diagram('ru'))
     report('классы', lambda: g.class_diagram('ru'))
     report('схема БД', g.db_schema_diagram)
+    report_ends('схема БД', g.db_schema_diagram)
     print()
     for title, fn in (('компоненты', lambda: g.component_diagram('ru')),
                       ('развёртывание', lambda: g.deployment_diagram('ru')),
