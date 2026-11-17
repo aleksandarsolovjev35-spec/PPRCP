@@ -98,9 +98,11 @@ CREATE TABLE `announcements` (
   `title` TEXT NOT NULL,
   `category` TEXT NOT NULL,
   `publish_date` TEXT NOT NULL,
+  `author_id` INT NULL,
   `author_name` TEXT NOT NULL,
   `content` TEXT NOT NULL,
-  `is_pinned` INT DEFAULT 0
+  `is_pinned` INT DEFAULT 0,
+  FOREIGN KEY (author_id) REFERENCES users(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE `audit_logs` (

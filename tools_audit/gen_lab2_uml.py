@@ -162,7 +162,7 @@ CLASS_RU = {
 def class_diagram(lang=None):
     _geom_reset()
     lang = lang or COMP_LANG
-    W = 2600
+    W = 2700
     COLS = [50, 580, 1110, 1640, 2170]
     BW = 400
     specs = {
@@ -259,7 +259,7 @@ def class_diagram(lang=None):
         if row < 2:
             row_y.append(row_y[row] + row_h[row] + 132)
     bottom = row_y[2] + row_h[2]
-    H = bottom + 170
+    H = bottom + 210
     c = Canvas(W, H, scale=2)
     title(c, 'Диаграмма классов — объектная модель портала Центра АНОК'
              if lang == 'ru' else 'Class Diagram — ANOK Center Portal domain model')
@@ -386,6 +386,13 @@ def class_diagram(lang=None):
     assoc([B('User', 0.42), T('Role', 0.42)], m0='0..*', r0='role', m1='1')
     # 15. User 0..* —— 0..1 Department
     assoc([T('User', 0.66), B('Department', 0.66)], m0='0..*', r0='department', m1='0..1')
+    # 16. Announcement 0..* —— 1 User (автор объявления; обход по правому полю)
+    _ya = bottom + 170
+    _yr = geo['Role'][1] - 90
+    _ann = B('Announcement', 0.35)
+    _usr = B('User', 0.92)
+    assoc([_ann, (_ann[0], _ya), (W - 60, _ya), (W - 60, _yr), (_usr[0], _yr), _usr],
+          m0='0..*', m1='1', r1='author')
 
     fname = 'class_diagram.png' if lang == COMP_LANG else 'class_diagram_%s.png' % lang
     c.save(os.path.join(OUT, fname))
@@ -1099,8 +1106,8 @@ def db_schema_diagram():
             ('', 'comment', 'TEXT'), ('', 'signed_at', 'TEXT'), ('', 'sign_hash', 'TEXT')]),
         'announcements': (1, 2, [
             ('PK', 'id', 'INT AI'), ('', 'title', 'TEXT*'), ('', 'category', 'TEXT*'),
-            ('', 'publish_date', 'TEXT*'), ('', 'author_name', 'TEXT*'),
-            ('', 'content', 'TEXT*'), ('', 'is_pinned', 'INT')]),
+            ('', 'publish_date', 'TEXT*'), ('FK', 'author_id', 'INT'),
+            ('', 'author_name', 'TEXT*'), ('', 'content', 'TEXT*'), ('', 'is_pinned', 'INT')]),
         'audit_logs': (2, 2, [
             ('PK', 'id', 'INT AI'), ('', 'event_time', 'TEXT*'), ('', 'user_name', 'TEXT*'),
             ('', 'user_role', 'TEXT*'), ('', 'action', 'TEXT*'), ('', 'entity_name', 'TEXT*'),
@@ -1206,6 +1213,11 @@ def db_schema_diagram():
     er([(COLS[4] + 210, Top('service_note_items')),
         (COLS[4] + 210, Bot('curriculum_disciplines'))],
        'zero-many', 'zero-one', c_labs=('0..*', (10, -10)), p_labs=('0..1', (8, 15)))
+    # 14. announcements.author_id → users.id (канал между строками 1 и 2)
+    gy14 = row_y[1] + row_h[1] + 40
+    er([(COLS[1] + 300, Top('announcements')), (COLS[1] + 300, gy14),
+        (COLS[2] + 150, gy14), (COLS[2] + 150, Bot('users'))],
+       'zero-many', 'zero-one', c_labs=('0..*', (8, -10)), p_labs=('0..1', (8, 15)))
 
     c.save(os.path.join(OUT, 'db_schema_diagram.png'))
 

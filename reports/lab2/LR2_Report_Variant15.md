@@ -61,7 +61,8 @@
 * `EducationalProgram` — образовательная программа: связана со стандартом ФГОС, выпускающей кафедрой и **композицией** с матрицей компетенций `Competency`.
 * `ServiceNote` и `ServiceNoteItem` — заявка на изменение дисциплины («Было» → «Стало») с ролями `releasingNotes` / `implementingNotes` между кафедрами и маршрутом согласования `DocumentSignature` (шаги `{1..4}`, ЭЦП `signHash` SHA-256).
 * `User` и `Role` — идентификация пользователей и ролевое разграничение прав доступа (`code: RoleCode`).
-* `AuditLog` — неизменяемый (append-only) журнал событий безопасности; `Announcement` — лента объявлений и регламентов. В обеих сущностях ФИО и роль автора хранятся снимком (`userName`, `userRole`, `authorName`), поэтому внешние ключи на `users` не объявляются — это отражено в § 3 при описании таблиц.
+* `AuditLog` — неизменяемый (append-only) журнал событий безопасности: ФИО и роль автора хранятся снимком (`userName`, `userRole`), внешний ключ на `users` не объявляется, чтобы запись оставалась достоверной и после переименования или удаления пользователя.
+* `Announcement` — лента объявлений и регламентов: автор объявления связан с пользователем ассоциацией `0..* — 1` (колонка `author_id` → `users`, роль `author`), а `authorName` хранится снимком для отображения в списке.
 
 ---
 
@@ -109,7 +110,7 @@
    * `id` (PK), `service_note_id` (FK), `discipline_id` (FK), `change_type`, `old_val`, `new_val`.
 10. **`roles` (Справочник ролей):** `id` (PK), `role_name`, `code`, `description`.
 11. **`users` (Пользователи системы):** `id` (PK), `username`, `full_name`, `email`, `role_id` (FK), `department_id` (FK), `position_title`.
-12. **`announcements` (Объявления и регламенты):** `id` (PK), `title`, `category`, `publish_date`, `author_name`, `content`, `is_pinned`.
+12. **`announcements` (Объявления и регламенты):** `id` (PK), `title`, `category`, `publish_date`, `author_id` (FK → `users`, допускает NULL), `author_name` (снимок для отображения), `content`, `is_pinned`.
 13. **`audit_logs` (Журнал аудита событий):** `id` (PK), `event_time`, `user_name`, `user_role`, `action`, `entity_name`, `status`, `ip_address`.
 
 Исходные DDL-скрипты создания схемы расположены в `portal/database/schema.sql`, а демонстрационные данные — в `portal/database/seed.sql`.
