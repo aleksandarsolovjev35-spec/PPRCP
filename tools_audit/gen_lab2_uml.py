@@ -604,145 +604,115 @@ def component_diagram(lang=None):
 # ======================================================================
 #  Диаграмма развёртывания
 # ======================================================================
-def node3d(c, x, y, w, h, stereo, name, depth=16, fill='#eef2fb', sk=11):
-    """Узел UML в виде трёхмерного параллелепипеда."""
-    c.rect(x, y, w, h, fill=fill, outline=LINE, width=1.4)
+def node3d(c, x, y, w, h, stereo, name, depth=16, sk=11, fill='#ffffff',
+           top='#f1f1f1', side='#e2e2e2'):
+    """Узел UML 2.5 — трёхмерный блок (перспектива куба)."""
+    c.rect(x, y, w, h, fill=fill, outline=LINE, width=1.5)
     c.poly([(x, y), (x + sk, y - depth), (x + w + sk, y - depth), (x + w, y)],
-           fill='#dbe3f4', outline=LINE, width=1.3)
+           fill=top, outline=LINE, width=1.3)
     c.poly([(x + w, y), (x + w + sk, y - depth), (x + w + sk, y + h - depth), (x + w, y + h)],
-           fill='#ccd7ee', outline=LINE, width=1.3)
-    c.line([(x, y), (x + w, y)], fill=LINE, width=1.4)
+           fill=side, outline=LINE, width=1.3)
     if stereo:
-        c.text(x + 14, y + 20, '«%s»' % stereo, 9.8, 'normal', '#374151')
+        c.text(x + 14, y + 20, '«%s»' % stereo, 9.6, 'normal', '#374151')
     if name:
-        c.text(x + 14, y + 41, name, 13.2, 'bold', INK)
+        c.text(x + 14, y + 41, name, 13.0, 'bold', INK)
 
 
-def artifact(c, x, y, w, h, name, lines=(), fill='#ffffff'):
+def env(c, x, y, w, h, stereo, name, sub=None):
+    """Среда исполнения: узел «executionEnvironment» (вложенный в устройство)."""
+    c.rect(x, y, w, h, fill='#ffffff', outline='#374151', width=1.3)
+    c.text(x + 12, y + 18, '«%s»' % stereo, 9.2, 'normal', '#374151')
+    c.text(x + 12, y + 34, name, 11.4, 'bold', '#111827')
+    if sub:
+        c.text(x + 12, y + 49, sub, 9.4, 'italic', '#374151')
+
+
+def artifact(c, x, y, w, h, name, lines=()):
+    """Артефакт UML: прямоугольник с загнутым углом и ключевым словом «artifact»."""
     fold = 12
     c.poly([(x, y), (x + w - fold, y), (x + w, y + fold), (x + w, y + h), (x, y + h)],
-           fill=fill, outline=LINE, width=1.2)
+           fill='#ffffff', outline=LINE, width=1.2)
     c.poly([(x + w - fold, y), (x + w - fold, y + fold), (x + w, y + fold)],
-           fill='#eef1f6', outline=LINE, width=1.0)
-    c.text(x + 10, y + 15, '«artifact»', 8.8, 'normal', '#4b5563')
-    c.text(x + 10, y + 30, name, 11.2, 'bold', INK)
-    yy = y + 46
+           fill='#f1f1f1', outline=LINE, width=1.0)
+    c.text(x + 10, y + 15, '«artifact»', 8.8, 'normal', '#374151')
+    c.text(x + 10, y + 32, name, 11.2, 'bold', INK)
+    yy = y + 50
     for ln in lines:
-        c.text_clip(x + 10, yy, ln, w - 20, 9.8, 'normal', '#374151')
-        yy += 13.5
+        c.text_clip(x + 10, yy, ln, w - 20, 9.8, 'normal', '#1f2937')
+        yy += 14
 
 
-def env(c, x, y, w, h, stereo, name, note_text=None, fill='#f7f9fe'):
-    c.rect(x, y, w, h, fill=fill, outline='#4b5563', width=1.2)
-    c.text(x + 10, y + 16, '«%s»' % stereo, 8.8, 'normal', '#4b5563')
-    c.text(x + 10, y + 32, name, 11.4, 'bold', '#111827')
-    if note_text:
-        c.text(x + 10, y + 47, note_text, 9.6, 'normal', '#4b5563')
-        return y + 58
-    return y + 42
+DEP_TEXTS = {
+    'ru': dict(
+        title='Диаграмма развёртывания — портал Центра АНОК',
+        ws='Рабочая станция пользователя',
+        browser='веб-браузер',
+        pages='Страницы портала', pages_l=['HTML + CSS + JS', 'Chart.js · DataTables',
+                                           'FullCalendar · SheetJS'],
+        asrv='Сервер приложений',
+        pyenv='Python 3.11 (http.server)', pyart='portal/server.py',
+        pyart_l=['portal.db — SQLite 3'],
+        phpenv='PHP 8.1-FPM', phpart='portal/index.php',
+        phpart_l=['portal/config.php'],
+        dbsrv='Сервер баз данных',
+        dbenv='MySQL 8.0 / MariaDB 10.6',
+        dbart='anok_portal', dbart_l=['schema.sql + seed.sql', '13 таблиц · utf8mb4'],
+        p1=['«protocol»', 'HTTP/1.1 · TCP 8000'],
+        p2=['«protocol»', 'SQL (PDO) · TCP 3306'],
+    ),
+    'en': dict(
+        title='Deployment Diagram — ANOK Center Portal',
+        ws='User workstation',
+        browser='web browser',
+        pages='Portal pages', pages_l=['HTML + CSS + JS', 'Chart.js · DataTables',
+                                       'FullCalendar · SheetJS'],
+        asrv='Application server',
+        pyenv='Python 3.11 (http.server)', pyart='portal/server.py',
+        pyart_l=['portal.db — SQLite 3'],
+        phpenv='PHP 8.1-FPM', phpart='portal/index.php',
+        phpart_l=['portal/config.php'],
+        dbsrv='Database server',
+        dbenv='MySQL 8.0 / MariaDB 10.6',
+        dbart='anok_portal', dbart_l=['schema.sql + seed.sql', '13 tables · utf8mb4'],
+        p1=['«protocol»', 'HTTP/1.1 · TCP 8000'],
+        p2=['«protocol»', 'SQL (PDO) · TCP 3306'],
+    ),
+}
 
 
-def deployment_diagram():
-    W, H = 2480, 1420
+def deployment_diagram(lang=None):
+    lang = lang or COMP_LANG
+    T = DEP_TEXTS[lang]
+    W, H = 1840, 660
     c = Canvas(W, H, scale=2)
-    title(c, 'Диаграмма развёртывания — физическая топология портала Центра АНОК',
-          'UML 2.5: узел «device» — трёхмерный блок; «execution environment» — среда исполнения внутри узла; '
-          '«artifact» — развёртываемый файл; линия связи подписана «protocol» и номером TCP-порта.')
+    title(c, T['title'])
 
-    # ---------------- клиентская станция --------------------------------
-    node3d(c, 80, 260, 540, 390, 'device', 'Рабочая станция пользователя')
-    y0 = env(c, 106, 316, 488, 300, 'execution environment',
-             'Веб-браузер (HTML5, CSS3, ES2020)', 'Chrome 120+ · Firefox 121+ · Edge 120+')
-    artifact(c, 124, y0 + 4, 452, 104, 'Страницы портала',
-             ['index.php (шаблон) → HTML', 'assets/app.css · assets/app.js',
-              'вкладки семестров 1–8'], fill='#ffffff')
-    artifact(c, 124, y0 + 120, 452, 78, 'Клиентские модули (CDN)',
-             ['Chart.js · FullCalendar · DataTables · SheetJS'], fill='#ffffff')
+    # ---------------- рабочая станция ------------------------------------
+    node3d(c, 60, 140, 420, 350, 'device', T['ws'])
+    env(c, 84, 230, 372, 230, 'executionEnvironment', T['browser'])
+    artifact(c, 104, 300, 332, 140, T['pages'], T['pages_l'])
 
-    # ---------------- сервер приложений ---------------------------------
-    node3d(c, 860, 210, 640, 500, 'device', 'Сервер приложений (portal host)')
-    y1 = env(c, 886, 266, 588, 420, 'execution environment',
-             'Python 3.11 (http.server) / PHP 8.1-FPM', 'порт TCP 8000, многопоточная обработка')
-    c.rect(904, y1 + 6, 552, 116, fill='#eef2fb', outline=LINE, width=1.3)
-    _comp_icon(c, 1422, y1 + 14)
-    c.text(916, y1 + 22, '«component» Portal Application', 10.6, 'bold', INK)
-    for i, ln in enumerate(['server.py — роутер, контроллеры, слой сервисов',
-                            'index.php — альтернативная реализация (PHP + PDO)',
-                            'доступ к БД: PDO / sqlite3, prepared statements']):
-        c.text_clip(916, y1 + 42 + i * 16, ln, 520, 9.8, 'normal', '#374151')
-    artifact(c, 904, y1 + 136, 552, 108, 'Развёртываемые артефакты',
-             ['portal/server.py · portal/index.php',
-              'portal/config.php (DB_HOST, DB_NAME, DB_USER)',
-              'portal/database/schema.sql · seed.sql'], fill='#ffffff')
+    # ---------------- сервер приложений ----------------------------------
+    node3d(c, 700, 140, 500, 460, 'device', T['asrv'])
+    env(c, 724, 210, 452, 170, 'executionEnvironment', T['pyenv'])
+    artifact(c, 744, 268, 412, 96, T['pyart'], T['pyart_l'])
+    env(c, 724, 400, 452, 170, 'executionEnvironment', T['phpenv'])
+    artifact(c, 744, 458, 412, 96, T['phpart'], T['phpart_l'])
 
-    # ---------------- сервер БД -----------------------------------------
-    node3d(c, 1740, 250, 580, 430, 'device', 'Сервер баз данных (варианты СУБД)')
-    # вариант 1 — MySQL/MariaDB
-    c.rect(1766, 300, 528, 168, fill='#f7f9fe', outline='#4b5563', width=1.2)
-    c.text(1776, 316, '«execution environment» MySQL 8.0 / MariaDB 10.6', 9.2, 'normal', '#4b5563')
-    c.text(1776, 331, 'InnoDB · utf8mb4 · порт TCP 3306', 9.6, 'normal', '#374151')
-    artifact(c, 1784, 342, 492, 108, 'anok_portal',
-             ['13 таблиц · 3NF · FOREIGN KEY',
-              'schema.sql + seed.sql (демо-данные)'], fill='#ffffff')
-    # вариант 2 — SQLite
-    c.rect(1766, 484, 528, 168, fill='#fdf8ef', outline='#4b5563', width=1.2)
-    c.text(1776, 500, '«execution environment» SQLite 3', 9.2, 'normal', '#4b5563')
-    c.text(1776, 515, 'автономный режим · файл portal.db (WAL)', 9.6, 'normal', '#374151')
-    artifact(c, 1784, 526, 492, 108, 'portal.db',
-             ['создаётся автоматически при первом',
-              'запуске server.py из schema.sql + seed.sql'], fill='#ffffff')
+    # ---------------- сервер баз данных ----------------------------------
+    node3d(c, 1420, 140, 360, 320, 'device', T['dbsrv'])
+    env(c, 1444, 210, 312, 200, 'executionEnvironment', T['dbenv'])
+    artifact(c, 1464, 276, 272, 110, T['dbart'], T['dbart_l'])
 
-    # ---------------- линии связи ----------------------------------------
-    c.line([(620, 420), (860, 420)], fill=LINE, width=1.6)
-    c.text(640, 390, '«protocol» HTTP/1.1 · HTTPS', 10.4, 'bold', '#111827')
-    c.text(640, 404, 'TCP 8000', 10.0, 'normal', '#374151')
-    c.text(632, 442, 'GET/POST, REST/JSON', 9.6, 'italic', '#4b5563')
+    # ---------------- пути связи -----------------------------------------
+    for x0, x1, lab in ((491, 700, T['p1']), (1211, 1420, T['p2'])):
+        c.line([(x0, 320), (x1, 320)], fill=LINE, width=1.6)
+        xm = (x0 + x1) / 2
+        c.text(xm, 306, lab[0], 9.8, 'bold', '#111827', anchor='ms')
+        c.text(xm, 344, lab[1], 9.8, 'normal', '#1f2937', anchor='ms')
 
-    c.line([(1500, 420), (1740, 420)], fill=LINE, width=1.6)
-    c.text(1514, 390, '«protocol» SQL (PDO)', 10.4, 'bold', '#111827')
-    c.text(1514, 404, 'TCP 3306', 10.0, 'normal', '#374151')
-    c.text(1508, 442, 'или файл portal.db', 9.6, 'italic', '#4b5563')
-
-    # ---------------- CDN (необязательный узел) ---------------------------
-    node3d(c, 80, 790, 540, 230, 'device', 'CDN библиотек (опционально)', fill='#f4f4f5')
-    c.text(94, 856, '«execution environment» jsDelivr / cdnjs', 9.4, 'normal', '#4b5563')
-    artifact(c, 104, 872, 492, 90, 'Chart.js · FullCalendar · DataTables',
-             ['HTTPS, порт TCP 443', 'без сети — локальные копии в assets/vendor/'],
-             fill='#ffffff')
-    c.line([(350, 790), (350, 650)], fill='#6b7280', width=1.3, dash=(6, 4))
-    c.text(362, 702, '«protocol» HTTPS', 9.8, 'normal', '#374151')
-    c.text(362, 716, 'TCP 443', 9.8, 'normal', '#374151')
-
-    # ---------------- резервное копирование -------------------------------
-    node3d(c, 1560, 800, 760, 210, 'device', 'Сервер резервного копирования', fill='#f4f4f5')
-    artifact(c, 1584, 866, 712, 106, 'Ежедневный дамп anok_portal.sql',
-             ['mysqldump / sqlite3 .backup → архив, ротация 30 дней',
-              '«protocol» SFTP · TCP 22 (задание cron)'], fill='#ffffff')
-    c.line([(2030, 650), (1980, 800)], fill='#6b7280', width=1.3, dash=(6, 4))
-    c.text(1890, 726, '«protocol» SFTP · TCP 22', 9.8, 'normal', '#374151')
-
-    # ---------------- легенда ---------------------------------------------
-    lx, ly, lw, lh = 80, 1080, 900, 230
-    legend_box(c, lx, ly, lw, lh, 'Notation')
-    node3d(c, lx + 26, ly + 60, 90, 34, '', '', depth=10, fill='#eef2fb', sk=8)
-    c.text(lx + 150, ly + 48, '«device» — физический узел (компьютер, сервер)', 10.6, 'normal', '#374151')
-    c.rect(lx + 26, ly + 104, 90, 34, fill='#f7f9fe', outline='#4b5563', width=1.1)
-    c.text(lx + 150, ly + 92, '«execution environment» — среда исполнения в узле', 10.6, 'normal', '#374151')
-    c.poly([(lx + 26, ly + 146), (lx + 92, ly + 146), (lx + 102, ly + 156),
-            (lx + 102, ly + 180), (lx + 26, ly + 180)],
-           fill='#ffffff', outline=LINE, width=1.1)
-    c.text(lx + 150, ly + 138, '«artifact» — развёртываемый файл', 10.6, 'normal', '#374151')
-    c.line([(lx + 26, ly + 200), (lx + 108, ly + 200)], fill=LINE, width=1.5)
-    c.text(lx + 150, ly + 190, 'линия связи: «protocol» + TCP-порт', 10.6, 'normal', '#374151')
-
-    note(c, 1020, 1080, 1300, [
-        'Вариант 1 (автономный): python3 server.py — SQLite portal.db создаётся из schema.sql и seed.sql',
-        'при первом запуске. Вариант 2 (PHP + MySQL/MariaDB): импорт schema.sql и seed.sql,',
-        'запуск php -S 0.0.0.0:8000 -t portal. Узлы CDN и резервного копирования — необязательные.'],
-        fill='#fffdf0')
-
-    c.save(os.path.join(OUT, 'deployment_diagram.png'))
-
+    fname = 'deployment_diagram.png' if lang == COMP_LANG else 'deployment_diagram_%s.png' % lang
+    c.save(os.path.join(OUT, fname))
 
 
 # ======================================================================
@@ -1222,7 +1192,8 @@ if __name__ == '__main__':
     class_diagram()
     component_diagram('ru')
     component_diagram('en')
-    deployment_diagram()
+    deployment_diagram('ru')
+    deployment_diagram('en')
     sequence_diagram()
     db_schema_diagram()
     print('ok')
