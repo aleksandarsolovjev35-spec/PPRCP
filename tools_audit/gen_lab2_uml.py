@@ -965,26 +965,11 @@ def sequence_diagram():
     top = 120
     tmp = Canvas(200, 200)
     sq = _build_sequence(tmp, top, 4000)
-    H = int(sq.y + 130)
+    H = int(sq.y + 70)
     c = Canvas(W, H, scale=2)
-    title(c, 'Диаграмма последовательности — экспертиза, валидация ФГОС и утверждение учебного плана',
-          'UML 2.5: сплошная стрелка — синхронное сообщение, пунктирная с открытой стрелкой — возврат, '
-          'вертикальные прямоугольники — периоды активности; alt / loop — комбинированные фрагменты.')
-    sq = _build_sequence(c, top, H - 40)
+    title(c, 'Диаграмма последовательности — экспертиза, валидация ФГОС и утверждение учебного плана')
+    sq = _build_sequence(c, top, H - 36)
     sq.render()
-
-    lx, ly = 60, H - 108
-    legend_box(c, lx, ly, 1280, 92, 'Условные обозначения')
-    c.line([(lx + 24, ly + 50), (lx + 118, ly + 50)], fill=LINE, width=1.4)
-    c.arrowhead((lx + 118, ly + 50), (lx + 24, ly + 50), 'filled', LINE, 10)
-    c.text(lx + 130, ly + 54, 'синхронное сообщение (вызов операции)', 10.6, 'normal', '#374151')
-    c.line([(lx + 470, ly + 50), (lx + 564, ly + 50)], fill=LINE, width=1.2, dash=(6, 4))
-    c.arrowhead((lx + 564, ly + 50), (lx + 470, ly + 50), 'open', LINE, 10)
-    c.text(lx + 576, ly + 54, 'возврат управления (return)', 10.6, 'normal', '#374151')
-    c.rect(lx + 836, ly + 40, 14, 24, fill='#f4f6fb', outline='#374151', width=1.2)
-    c.text(lx + 860, ly + 54, 'период активности (activation)', 10.6, 'normal', '#374151')
-    c.text(lx + 24, ly + 78, '«boundary» — граничный объект (страница портала), «control» — управляющий объект, '
-                            '«entity» — сущность предметной области.', 10.2, 'normal', MUTED)
 
     c.save(os.path.join(OUT, 'sequence_diagram.png'))
 
@@ -1163,41 +1148,52 @@ def db_schema_diagram():
     y = rowy('curriculums', 'program_id')
     er([(Ledge('curriculums'), y), (Redge('educational_programs'), y)],
        'zero-many', 'zero-one', c_labs=('0..*', (-38, -8)), p_labs=('0..1', (8, -8)))
-    # 3. educational_programs.department_id → departments.id (верхний канал, y = 142)
-    er([(Ledge('educational_programs') + 240, Top('educational_programs')),
-        (Ledge('educational_programs') + 240, 142),
-        (COLS[3] + 180, 142), (COLS[3] + 180, Top('departments'))],
-       'zero-many', 'zero-one', c_labs=('0..*', (-42, -10)), p_labs=('0..1', (10, -10)))
-    # 4. curriculum_disciplines.curriculum_id → curriculums.id (верхний канал, y = 96)
-    er([(COLS[2] + 150, Top('curriculums')), (COLS[2] + 150, 96),
-        (COLS[4] + 160, 96), (COLS[4] + 160, Top('curriculum_disciplines'))],
+    # 3. educational_programs.department_id → departments.id
+    #    канал под строкой 0 (y = 400) и вход в нижнюю грань departments:
+    #    верхний канал занят связью 4, нижняя грань departments свободна левее 1690
+    _y30 = 400
+    er([(Ledge('educational_programs') + 250, Bot('educational_programs')),
+        (Ledge('educational_programs') + 250, _y30),
+        (COLS[3] + 30, _y30), (COLS[3] + 30, Bot('departments'))],
+       'zero-many', 'zero-one', c_labs=('0..*', (10, 15)), p_labs=('0..1', (-40, 15)))
+    # 4. curriculum_disciplines.curriculum_id → curriculums.id
+    #    подъём от правой грани curriculums мимо спуска связи 3, канал y = 96
+    _x4 = Redge('curriculums') + 10
+    er([(Redge('curriculums'), rowy('curriculums', 'academic_year')),
+        (_x4, rowy('curriculums', 'academic_year')),
+        (_x4, 96), (COLS[4] + 160, 96), (COLS[4] + 160, Top('curriculum_disciplines'))],
        'zero-one', 'zero-many', c_labs=('0..1', (10, -10)), p_labs=('0..*', (-42, -10)))
     # 5. curriculum_disciplines.implementing_department_id → departments.id
+    #    вход в departments с правой грани; промежуток между столбцами 3 и 4 оставлен
+    #    свободным для связи 8 (users → departments)
     y = rowy('curriculum_disciplines', 'implementing_department_id')
-    er([(Ledge('curriculum_disciplines'), y), (1890, y), (1890, Bot('departments'))],
+    er([(Ledge('curriculum_disciplines'), y), (COLS[3] + BW + 60, y),
+        (COLS[3] + BW + 60, 230), (Redge('departments'), 230)],
        'zero-many', 'zero-one', c_labs=('0..*', (-38, -8)), p_labs=('0..1', (8, 15)))
-    # 6. competencies.program_id → educational_programs.id (канал между столбцами 0 и 1)
-    yco = rowy('competencies', 'program_id')
-    yp = rowy('educational_programs', 'id')
-    gx6 = COLS[0] + BW + 46
-    er([(Redge('competencies'), yco), (gx6, yco), (gx6, yp),
-        (Ledge('educational_programs'), yp)],
-       'zero-many', 'zero-one', c_labs=('0..*', (7, -8)), p_labs=('0..1', (-38, -8)))
+    # 6. competencies.program_id → educational_programs.id
+    #    обход снизу: вертикаль столбца 0 поднимается в промежутке между строками
+    #    и входит в нижнюю грань educational_programs (левая грань занята связями 1 и 2)
+    er([(COLS[0] + 160, Top('competencies')), (COLS[0] + 160, 352),
+        (COLS[1] + 150, 352), (COLS[1] + 150, Bot('educational_programs'))],
+       'zero-many', 'zero-one', c_labs=('0..*', (10, -10)), p_labs=('0..1', (-38, 15)))
     # 7. users.role_id → roles.id
     y = rowy('users', 'role_id')
     yr = rowy('roles', 'id')
     er([(Ledge('users'), y), (1010, y), (1010, yr), (Redge('roles'), yr)],
        'zero-many', 'zero-one', c_labs=('0..*', (-38, -8)), p_labs=('0..1', (7, -8)))
-    # 8. users.department_id → departments.id (через межстрочный канал)
-    gy8 = row_y[0] + row_h[0] + 40
-    er([(COLS[2] + 120, Top('users')), (COLS[2] + 120, gy8),
-        (COLS[3] + 90, gy8), (COLS[3] + 90, Bot('departments'))],
-       'zero-many', 'zero-one', c_labs=('0..*', (-38, -10)), p_labs=('0..1', (-40, 15)))
-    # 9. service_notes.curriculum_id → curriculums.id (через канал под строкой 1)
-    gy9 = row_y[0] + row_h[0] + 76
+    # 8. users.department_id → departments.id
+    #    справа от service_notes поднимается в промежутке между столбцами 3 и 4
+    #    и входит в правую грань departments (нижняя занята связями 10 и 11)
+    er([(COLS[2] + 30, Top('users')), (COLS[2] + 30, 430),
+        (COLS[3] + 70, 430), (COLS[3] + 70, Bot('departments'))],
+       'zero-many', 'zero-one', c_labs=('0..*', (10, -10)), p_labs=('0..1', (8, 15)))
+    # 9. service_notes.curriculum_id → curriculums.id
+    #    обход снизу: под строкой 1 до промежутка между столбцами 1 и 2, затем вверх
+    #    под curriculums и вход в его нижнюю грань
+    _x9 = COLS[2] + BW + 70
     er([(Ledge('service_notes'), rowy('service_notes', 'curriculum_id')),
-        (COLS[3] - 90, rowy('service_notes', 'curriculum_id')), (COLS[3] - 90, gy9),
-        (COLS[2] + 250, gy9), (COLS[2] + 250, Bot('curriculums'))],
+        (_x9, rowy('service_notes', 'curriculum_id')), (_x9, 480),
+        (COLS[2] + 250, 480), (COLS[2] + 250, Bot('curriculums'))],
        'zero-many', 'zero-one', c_labs=('0..*', (-38, -8)), p_labs=('0..1', (8, 15)))
     # 10. service_notes.releasing_dept_id → departments.id
     er([(COLS[3] + 120, Top('service_notes')), (COLS[3] + 120, Bot('departments'))],
