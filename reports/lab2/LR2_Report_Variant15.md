@@ -23,7 +23,7 @@
 ![Диаграмма компонентов портала](../../diagrams/lab2/component_diagram.png)
 
 * **Клиентский уровень — `PortalUI`:** рендеринг HTML/CSS-интерфейса, интерактивное переключение вкладок семестров, динамическая фильтрация таблиц на JavaScript. Компонент **требует** два интерфейса: `IPortalPages` (серверный HTML страниц) и `IRestApi` (JSON-эндпоинты), которые **предоставляет** `HttpKernel`.
-* **Уровень маршрутизации и контроллеров — `HttpKernel`:** принимает входящие HTTP GET/POST-запросы, выполняет диспетчеризацию страниц (`dashboard`, `plans`, `plan`, `analytics`, `calendar`, `validate`, `signatures`, `memos`, `programs`, `competencies`, `standards`, `departments`, `announcements`, `audit`, `sitemap`), REST-эндпоинтов (`/api/stats`, `/api/plans`, `/api/announcements`, `/api/audit`), а также аутентификацию, ролевую авторизацию (`RoleCode`) и проверку CSRF-токена. Компонент **требует** пять интерфейсов уровня бизнес-логики: `ICurriculumService`, `IFgosValidation`, `IWorkflow`, `IMemoProcessing`, `IAuditSink`.
+* **Уровень маршрутизации и контроллеров — `HttpKernel`:** принимает входящие HTTP GET/POST-запросы, выполняет диспетчеризацию страниц (`dashboard`, `plans`, `plan`, `analytics`, `calendar`, `validate`, `signatures`, `memos`, `programs`, `competencies`, `standards`, `departments`, `announcements`, `audit`, `sitemap`), REST-эндпоинтов (`/api/stats`, `/api/plans`, `/api/announcements`), а также аутентификацию, ролевую авторизацию (`RoleCode`) и проверку CSRF-токена. Компонент **требует** пять интерфейсов уровня бизнес-логики: `ICurriculumService`, `IFgosValidation`, `IWorkflow`, `IMemoProcessing`, `IAuditSink`.
 * **Уровень бизнес-логики:**
   * `CurriculumService` — расчёт кредитов и часов, балансировка семестровой нагрузки;
   * `FgosValidationEngine` — алгоритмическая проверка параметров плана на соответствие нормативам ФГОС ВО 3++;
@@ -31,7 +31,7 @@
   * `MemoManager` — обработка служебных записок на изменение дисциплин;
   * `AuditLogger` — сквозное протоколирование действий пользователей.
   Каждый сервис **предоставляет** свой интерфейс и **требует** `IPersistence` от слоя доступа к данным.
-* **Уровень доступа к данным — `DataAccessLayer`:** PDO / SQLite DB Layer, работающий только с параметризованными подготовленными запросами (prepared statements), транзакциями ACID и объявленными внешними ключами; зависимостью «use» связан с базой данных `anok_portal` (`schema.sql` + `seed.sql`, 13 таблиц).
+* **Уровень доступа к данным — `DataAccessLayer`:** единая точка доступа к БД для обеих реализаций портала (`sqlite3` в Python-версии, `PDO` в PHP-версии); включены внешние ключи (`PRAGMA foreign_keys = ON`), транзакции ACID, кодировка `utf8mb4`; схема и демо-данные создаются скриптами `schema.sql` и `seed.sql` (13 таблиц, 3NF). С хранилищем `«database» anok_portal` компонент связан зависимостью «use».
 
 ---
 

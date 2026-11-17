@@ -408,7 +408,7 @@ def socket(c, x, y, r=7.0, side='bottom'):
     return (x + 2 * r, y)
 
 
-def assembly(c, x, y_top, y_bot, name=None, provider='top', size=10.2):
+def assembly(c, x, y_top, y_bot, name=None, provider='top', size=11.0):
     """Сборочный разъём UML 2.5: «шарик» поставщика надет в «гнездо» потребителя.
 
     y_top / y_bot — границы компонентов (верхняя и нижняя); provider — с какой
@@ -454,17 +454,18 @@ def component_diagram():
     # ---- 1. клиентский уровень ------------------------------------------
     ux, uy, uw, uh = 890, 186, 700, 150
     component(c, ux, uy, uw, uh, 'PortalUI', lines=[
-        'Артефакты: portal/index.php (шаблоны), assets/app.css, assets/app.js',
-        'Chart.js · FullCalendar · DataTables · SheetJS (CDN или assets/vendor)',
-        'Рендеринг HTML, переключение семестров 1–8, фильтрация таблиц',
+        'HTML + CSS + JS формируются сервером: portal/server.py, portal/index.php',
+        'Библиотеки с CDN (jsdelivr): Chart.js · jQuery · DataTables · FullCalendar',
+        'SheetJS · jsPDF · crypto-js · SweetAlert2 · Toastify · diff2html',
+        'Семестры 1–8, фильтрация таблиц, экспорт XLSX/PDF, проверка ЭЦП в браузере',
     ], fill='#e8f1fe')
 
     # ---- 2. ядро HTTP ----------------------------------------------------
     ky, kh = 426, 150
     component(c, 80, ky, 2320, kh, 'HttpKernel — маршрутизация и контроллеры', lines=[
-        'Страницы: dashboard · plans · plan · analytics · validate · signatures · memos · programs · '
-        'competencies · standards · departments · announcements · audit · sitemap',
-        'REST-эндпоинты: /api/stats · /api/plans · /api/announcements · /api/audit',
+        '15 страниц: dashboard · plans · plan · analytics · calendar · validate · signatures · '
+        'memos · programs · competencies · standards · departments · announcements · audit · sitemap',
+        'REST-эндпоинты (JSON): /api/stats · /api/plans · /api/announcements',
         'Аутентификация, ролевая авторизация (RoleCode), проверка CSRF-токена формы',
     ], fill='#eef2fb')
     # PortalUI требует IPortalPages и IRestApi — их предоставляет HttpKernel (снизу)
@@ -494,10 +495,10 @@ def component_diagram():
 
     # ---- 4. слой доступа к данным ---------------------------------------
     dy, dh = 1076, 140
-    component(c, 80, dy, 2320, dh, 'DataAccessLayer — PDO / SQLite (prepared statements)',
-              lines=['Параметризованные запросы (prepare/execute) — защита от SQL-инъекций',
-                     'Транзакции ACID, внешние ключи (FOREIGN KEY), режим WAL для SQLite',
-                     'Единый интерфейс доступа: MySQL/MariaDB (PDO) и SQLite (portal.db)'],
+    component(c, 80, dy, 2320, dh, 'DataAccessLayer — sqlite3 (Python) / PDO (PHP)',
+              lines=['Единая точка доступа к данным для обеих реализаций портала',
+                     'Внешние ключи включены (PRAGMA foreign_keys = ON), транзакции ACID, utf8mb4',
+                     'Схема и демо-данные: schema.sql + seed.sql (13 таблиц, 3NF)'],
               fill='#eaf5ec')
     for cx in xml:
         assembly(c, cx, sy + sh, dy, 'IPersistence', provider='bottom')
@@ -517,14 +518,14 @@ def component_diagram():
            'normal', '#374151')
     c.line([(1240, dy + dh), (1240, dby)], fill=LINE, width=1.3, dash=(7, 5))
     c.arrowhead((1240, dby), (1240, dy + dh), 'open', LINE, 10)
-    c.text(1256, (dy + dh + dby) / 2 - 9, '«use» SQL DDL / DML', 10.2, 'italic', '#374151')
-    c.text(1256, (dy + dh + dby) / 2 + 7, '(prepared statements)', 10.2, 'italic', '#374151')
+    c.text(1256, (dy + dh + dby) / 2 - 9, '«use» — SQL-запросы', 10.2, 'italic', '#374151')
+    c.text(1256, (dy + dh + dby) / 2 + 7, '(DDL / DML, транзакции)', 10.2, 'italic', '#374151')
 
     # ---- примечание и легенда -------------------------------------------
     note(c, 80, 1300, 800, [
-        'Хранилище «database» вне подсистемы: доступ к нему — только через',
-        'DataAccessLayer подготовленными выражениями. Все вызовы бизнес-логики',
-        'журналируются через IAuditSink (AuditLogger).'], fill='#fffdf0')
+        'Хранилище «database» вынесено за границу подсистемы: единственный путь к нему —',
+        'DataAccessLayer. Каждая операция, изменяющая данные, журналируется контроллером',
+        'через IAuditSink (AuditLogger).'], fill='#fffdf0')
 
     lx, ly, lw, lh = 1620, 1296, 800, 210
     legend_box(c, lx, ly, lw, lh, 'Условные обозначения')
