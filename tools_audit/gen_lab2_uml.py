@@ -441,116 +441,100 @@ def subsystem_frame(c, x, y, w, h, name, stereo='subsystem', fill='#fcfdff'):
     c.text(x + 18 + c.tw(st, 9.6), y + 18, name, 12.2, 'bold', '#1f2937')
 
 
+def component_slim(c, x, y, w, h, name, stereo='component', fill='#eef2fb', name_size=12.6):
+    """Каноническое изображение компонента UML 2.5: ключевое слово, имя, пиктограмма.
+
+    Внутренние секции не используются — обязанности компонента выносятся
+    в примечания, как того требует классическая нотация."""
+    c.rect(x, y, w, h, fill=fill, outline=LINE, width=1.4)
+    c.text(x + w / 2 - 10, y + 20, '«%s»' % stereo, 9.8, 'normal', '#374151', anchor='ms')
+    c.text(x + w / 2 - 10, y + 42, name, name_size, 'bold', INK, anchor='ms')
+    _comp_icon(c, x + w - 34, y + 12)
+
+
 def component_diagram():
-    W, H = 2480, 1520
+    W, H = 1880, 1180
+    CX = 940                                  # ось симметрии компоновки
     c = Canvas(W, H, scale=2)
-    title(c, 'Диаграмма компонентов — модульная структура портала Центра АНОК',
-          'UML 2.5: компонент — прямоугольник с ключевым словом «component» и пиктограммой; '
-          'сборочный разъём = «шарик» предоставляемого интерфейса, надетый в «гнездо» требуемого.')
+    title(c, 'Диаграмма компонентов — портал Центра АНОК',
+          'UML 2.5: «component»; сборочный разъём — «шарик» предоставляемого интерфейса, '
+          'надетый в «гнездо» требуемого; «use» — зависимость без формального интерфейса.')
 
-    # ---- граница подсистемы ---------------------------------------------
-    subsystem_frame(c, 46, 140, 2388, 1120, 'Портал Центра АНОК — прикладная подсистема')
+    # ---------------- граница подсистемы --------------------------------
+    subsystem_frame(c, 60, 130, 1640, 660, 'Портал Центра АНОК')
 
-    # ---- 1. клиентский уровень ------------------------------------------
-    ux, uy, uw, uh = 890, 186, 700, 150
-    component(c, ux, uy, uw, uh, 'PortalUI', lines=[
-        'HTML + CSS + JS формируются сервером: portal/server.py, portal/index.php',
-        'Библиотеки с CDN (jsdelivr): Chart.js · jQuery · DataTables · FullCalendar',
-        'SheetJS · jsPDF · crypto-js · SweetAlert2 · Toastify · diff2html',
-        'Семестры 1–8, фильтрация таблиц, экспорт XLSX/PDF, проверка ЭЦП в браузере',
-    ], fill='#e8f1fe')
+    # ---------------- компоненты ----------------------------------------
+    ui_w, ui_h, ui_y = 400, 78, 168
+    component_slim(c, CX - ui_w / 2, ui_y, ui_w, ui_h, 'PortalUI', fill='#e8f1fe')
 
-    # ---- 2. ядро HTTP ----------------------------------------------------
-    ky, kh = 426, 150
-    component(c, 80, ky, 2320, kh, 'HttpKernel — маршрутизация и контроллеры', lines=[
-        '15 страниц: dashboard · plans · plan · analytics · calendar · validate · signatures · '
-        'memos · programs · competencies · standards · departments · announcements · audit · sitemap',
-        'REST-эндпоинты (JSON): /api/stats · /api/plans · /api/announcements',
-        'Аутентификация, ролевая авторизация (RoleCode), проверка CSRF-токена формы',
-    ], fill='#eef2fb')
-    # PortalUI требует IPortalPages и IRestApi — их предоставляет HttpKernel (снизу)
-    assembly(c, 1100, uy + uh, ky, 'IPortalPages', provider='bottom')
-    assembly(c, 1380, uy + uh, ky, 'IRestApi', provider='bottom')
+    k_w, k_h, k_y = 1480, 78, 330
+    component_slim(c, CX - k_w / 2, k_y, k_w, k_h, 'HttpKernel', fill='#eef2fb')
 
-    # ---- 3. сервисы бизнес-логики ---------------------------------------
-    sy, sh = 756, 168
-    services = [
-        (80, 'CurriculumService', ['расчёт кредитов и часов', 'баланс семестра 30 з.е.',
-                                   'сумма 1080 академических часов']),
-        (555, 'FgosValidationEngine', ['порог 240 з.е.', '≤ 5 экзаменов в сессию',
-                                       '≥ 12 з.е. практик, ≥ 6 ГИА']),
-        (1030, 'WorkflowManager', ['маршрут визирования 1–4', 'ЭЦП: SHA-256 sign_hash',
-                                   'утверждение протокола УС']),
-        (1505, 'MemoManager', ['служебные записки', 'сравнение «Было → Стало»',
-                               'применение правок в УП']),
-        (1980, 'AuditLogger', ['append-only журнал', 'события безопасности',
-                               'user_role, ip_address']),
-    ]
-    xml = [290, 765, 1240, 1715, 2190]
-    iface = ['ICurriculumService', 'IFgosValidation', 'IWorkflow',
-             'IMemoProcessing', 'IAuditSink']
-    for (x, nm, lines), cx, ifn in zip(services, xml, iface):
-        component(c, x, sy, 420, sh, nm, lines=lines, fill='#f3f0fd')
-        assembly(c, cx, ky + kh, sy, ifn, provider='bottom')
+    sv_w, sv_h, sv_y, sv_step = 264, 78, 492, 290
+    sv_x = [CX - 2 * sv_step - sv_w / 2 + i * sv_step for i in range(5)]
+    services = ['CurriculumService', 'FgosValidationEngine', 'WorkflowManager',
+                'MemoManager', 'AuditLogger']
+    ifaces = ['ICurriculumService', 'IFgosValidation', 'IWorkflow',
+              'IMemoProcessing', 'IAuditSink']
+    for x, nm in zip(sv_x, services):
+        component_slim(c, x, sv_y, sv_w, sv_h, nm, fill='#f3f0fd')
 
-    # ---- 4. слой доступа к данным ---------------------------------------
-    dy, dh = 1076, 140
-    component(c, 80, dy, 2320, dh, 'DataAccessLayer — sqlite3 (Python) / PDO (PHP)',
-              lines=['Единая точка доступа к данным для обеих реализаций портала',
-                     'Внешние ключи включены (PRAGMA foreign_keys = ON), транзакции ACID, utf8mb4',
-                     'Схема и демо-данные: schema.sql + seed.sql (13 таблиц, 3NF)'],
-              fill='#eaf5ec')
-    for cx in xml:
-        assembly(c, cx, sy + sh, dy, 'IPersistence', provider='bottom')
+    d_y = 654
+    component_slim(c, CX - k_w / 2, d_y, k_w, k_h, 'DataAccessLayer', fill='#eaf5ec')
 
-    # ---- 5. внешнее хранилище -------------------------------------------
-    dbx, dby, dbw, dbh = 950, 1322, 580, 128
-    c.d.ellipse([dbx * c.s, dby * c.s, (dbx + dbw) * c.s, (dby + 26) * c.s],
+    # ---------------- сборочные разъёмы ---------------------------------
+    assembly(c, CX - 110, ui_y + ui_h, k_y, 'IPortalPages', provider='bottom', size=10.8)
+    assembly(c, CX + 110, ui_y + ui_h, k_y, 'IRestApi', provider='bottom', size=10.8)
+    centres = [x + sv_w / 2 for x in sv_x]
+    for x, nm in zip(centres, ifaces):
+        assembly(c, x, k_y + k_h, sv_y, nm, provider='bottom', size=10.6)
+    for x in centres:
+        assembly(c, x, sv_y + sv_h, d_y, 'IPersistence', provider='bottom', size=10.6)
+
+    # ---------------- хранилище (вне подсистемы) ------------------------
+    dbw, dbh, dby = 480, 112, 860
+    dbx = CX - dbw / 2
+    c.d.ellipse([dbx * c.s, dby * c.s, (dbx + dbw) * c.s, (dby + 24) * c.s],
                 fill='#fdf4e3', outline=LINE, width=3)
-    c.rect(dbx, dby + 13, dbw, dbh - 26, fill='#fdf4e3', outline=None)
-    c.line([(dbx, dby + 13), (dbx, dby + dbh - 13)], fill=LINE, width=1.4)
-    c.line([(dbx + dbw, dby + 13), (dbx + dbw, dby + dbh - 13)], fill=LINE, width=1.4)
-    c.d.arc([dbx * c.s, (dby + dbh - 26) * c.s, (dbx + dbw) * c.s, (dby + dbh) * c.s],
+    c.rect(dbx, dby + 12, dbw, dbh - 24, fill='#fdf4e3', outline=None)
+    c.line([(dbx, dby + 12), (dbx, dby + dbh - 12)], fill=LINE, width=1.4)
+    c.line([(dbx + dbw, dby + 12), (dbx + dbw, dby + dbh - 12)], fill=LINE, width=1.4)
+    c.d.arc([dbx * c.s, (dby + dbh - 24) * c.s, (dbx + dbw) * c.s, (dby + dbh) * c.s],
             0, 180, fill=LINE, width=4)
-    c.text(dbx + dbw / 2, dby + 52, '«database» anok_portal', 13, 'bold', INK, anchor='ms')
-    c.text(dbx + 22, dby + 74, '13 таблиц · 3NF · utf8mb4', 10.4, 'normal', '#374151')
-    c.text(dbx + 22, dby + 94, 'schema.sql / seed.sql · индексы по внешним ключам', 10.4,
-           'normal', '#374151')
-    c.line([(1240, dy + dh), (1240, dby)], fill=LINE, width=1.3, dash=(7, 5))
-    c.arrowhead((1240, dby), (1240, dy + dh), 'open', LINE, 10)
-    c.text(1256, (dy + dh + dby) / 2 - 9, '«use» — SQL-запросы', 10.2, 'italic', '#374151')
-    c.text(1256, (dy + dh + dby) / 2 + 7, '(DDL / DML, транзакции)', 10.2, 'italic', '#374151')
+    c.text(CX, dby + 50, '«database» anok_portal', 12.4, 'bold', INK, anchor='ms')
+    c.text(CX, dby + 72, '13 таблиц · 3NF · utf8mb4', 10.0, 'normal', '#374151', anchor='ms')
+    c.line([(CX, d_y + 78), (CX, dby)], fill=LINE, width=1.3, dash=(7, 5))
+    c.arrowhead((CX, dby), (CX, d_y + 78), 'open', LINE, 10)
+    c.text(CX + 14, (d_y + 78 + dby) / 2 + 4, '«use»', 10.4, 'italic', '#374151')
 
-    # ---- примечание и легенда -------------------------------------------
-    note(c, 80, 1300, 800, [
-        'Хранилище «database» вынесено за границу подсистемы: единственный путь к нему —',
-        'DataAccessLayer. Каждая операция, изменяющая данные, журналируется контроллером',
-        'через IAuditSink (AuditLogger).'], fill='#fffdf0')
+    # ---------------- примечания ----------------------------------------
+    note(c, 60, 830, 600, [
+        'PortalUI: HTML/CSS/JS формируются сервером (portal/server.py,',
+        'portal/index.php); библиотеки Chart.js, jQuery, DataTables,',
+        'FullCalendar, SheetJS, jsPDF — с CDN jsdelivr.'], fill='#fffdf0')
+    note(c, 1210, 830, 610, [
+        'HttpKernel: 15 страниц (?page=…) и 3 REST-эндпоинта',
+        '(/api/stats, /api/plans, /api/announcements), аутентификация,',
+        'ролевая авторизация RoleCode, проверка CSRF-токена.'], fill='#fffdf0')
 
-    lx, ly, lw, lh = 1620, 1296, 800, 210
+    # ---------------- легенда -------------------------------------------
+    lx, ly, lw, lh = 60, 1000, 1120, 150
     legend_box(c, lx, ly, lw, lh, 'Условные обозначения')
-    yy = ly + 38
-    _comp_icon(c, lx + 22, yy - 12)
-    c.text(lx + 70, yy, 'компонент (модуль системы)', 10.6, 'normal', '#374151')
-    yy += 34
-    cy = yy - 6
-    c.line([(lx + 22, cy), (lx + 44, cy)], fill=LINE, width=1.3)
-    c.arc(lx + 50, cy, 11.5, 270, 90, fill=LINE, width=1.4)
-    c.circle(lx + 50, cy, 6, fill='#ffffff', outline=LINE, width=1.2)
-    c.line([(lx + 61, cy), (lx + 86, cy)], fill=LINE, width=1.3)
-    c.text(lx + 100, cy + 5, 'сборочный разъём (шарик в гнезде)', 10.6, 'normal', '#374151')
-    yy += 38
-    c.line([(lx + 22, yy - 6), (lx + 52, yy - 6)], fill=LINE, width=1.3)
-    c.circle(lx + 58, yy - 6, 6, fill='#ffffff', outline=LINE, width=1.2)
-    c.text(lx + 78, yy - 2, 'предоставляемый интерфейс (шарик)', 10.6, 'normal', '#374151')
-    yy += 34
-    c.line([(lx + 22, yy - 6), (lx + 46, yy - 6)], fill=LINE, width=1.3)
-    c.arc(lx + 58, yy - 6, 9, 90, 270, fill=LINE, width=1.4)
-    c.text(lx + 78, yy - 2, 'требуемый интерфейс (гнездо)', 10.6, 'normal', '#374151')
-    yy += 32
-    c.line([(lx + 22, yy), (lx + 90, yy)], fill=LINE, width=1.2, dash=(7, 5))
-    c.arrowhead((lx + 90, yy), (lx + 22, yy), 'open', LINE, 9)
-    c.text(lx + 104, yy + 4, 'зависимость «use» (пунктир, открытая стрелка)', 10.6, 'normal', '#374151')
+    r1, r2 = ly + 46, ly + 100
+    c.line([(lx + 26, r1), (lx + 46, r1)], fill=LINE, width=1.3)
+    c.arc(lx + 52, r1, 10, 270, 90, fill=LINE, width=1.4)
+    c.circle(lx + 52, r1, 6, fill='#ffffff', outline=LINE, width=1.2)
+    c.line([(lx + 62, r1), (lx + 84, r1)], fill=LINE, width=1.3)
+    c.text(lx + 96, r1 + 5, 'сборочный разъём: «шарик» в «гнезде»', 10.6, 'normal', '#374151')
+    c.line([(lx + 450, r1), (lx + 516, r1)], fill=LINE, width=1.2, dash=(7, 5))
+    c.arrowhead((lx + 516, r1), (lx + 450, r1), 'open', LINE, 9)
+    c.text(lx + 528, r1 + 5, 'зависимость «use» (нет формального интерфейса)', 10.6,
+           'normal', '#374151')
+    _comp_icon(c, lx + 26, r2 - 14)
+    c.text(lx + 96, r2 + 5, 'компонент: ключевое слово «component» + пиктограмма', 10.6,
+           'normal', '#374151')
+    c.rect(lx + 450, r2 - 16, 46, 30, fill='#fcfdff', outline='#94a3b8', width=1.3)
+    c.text(lx + 528, r2 + 5, 'граница подсистемы «subsystem»', 10.6, 'normal', '#374151')
 
     c.save(os.path.join(OUT, 'component_diagram.png'))
 
