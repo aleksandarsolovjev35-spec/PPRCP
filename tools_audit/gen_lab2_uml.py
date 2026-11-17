@@ -454,6 +454,9 @@ def component_slim(c, x, y, w, h, name, stereo='component', fill='#ffffff', name
 
 # Язык подписей диаграммы компонентов: 'ru' — кириллица, 'en' — латиница.
 COMP_LANG = 'ru'
+# Дополнительные подписи (подзаголовок с правилами нотации, примечания, легенда,
+# строка с параметрами БД). False — на диаграмме остаются только элементы модели.
+COMP_HELPERS = False
 
 COMP_TEXTS = {
     'ru': dict(
@@ -514,10 +517,10 @@ COMP_TEXTS = {
 def component_diagram(lang=None):
     lang = lang or COMP_LANG
     T = COMP_TEXTS[lang]
-    W, H = 1880, 1180
+    W, H = 1880, (1180 if COMP_HELPERS else 1010)
     CX = 940                                  # ось симметрии компоновки
     c = Canvas(W, H, scale=2)
-    title(c, T['title'], T['sub'])
+    title(c, T['title'], T['sub'] if COMP_HELPERS else None)
 
     # ---------------- граница подсистемы --------------------------------
     subsystem_frame(c, 60, 126, 1640, 690, T['subsystem'])
@@ -564,32 +567,35 @@ def component_diagram(lang=None):
     c.line([(dbx + dbw, dby + 12), (dbx + dbw, dby + dbh - 12)], fill=LINE, width=1.4)
     c.d.arc([dbx * c.s, (dby + dbh - 24) * c.s, (dbx + dbw) * c.s, (dby + dbh) * c.s],
             0, 180, fill=LINE, width=4)
-    c.text(CX, dby + 50, '«database» anok_portal', 12.4, 'bold', INK, anchor='ms')
-    c.text(CX, dby + 72, T['tables'], 10.0, 'normal', '#1f2937', anchor='ms')
+    c.text(CX, dby + (48 if COMP_HELPERS else 62), '«database» anok_portal', 12.4, 'bold', INK, anchor='ms')
+    if COMP_HELPERS:
+        c.text(CX, dby + 70, T['tables'], 10.0, 'normal', '#1f2937', anchor='ms')
     c.line([(CX, d_y + k_h), (CX, dby)], fill=LINE, width=1.3, dash=(7, 5))
     c.arrowhead((CX, dby), (CX, d_y + k_h), 'open', LINE, 10)
     c.text(CX + 14, (d_y + k_h + dby) / 2 + 4, '«use»', 10.4, 'italic', '#1f2937')
 
     # ---------------- примечания ----------------------------------------
-    note(c, 60, 830, 600, T['note1'], fill='#ffffff', outline='#374151')
-    note(c, 1210, 830, 610, T['note2'], fill='#ffffff', outline='#374151')
+    if COMP_HELPERS:
+        note(c, 60, 830, 600, T['note1'], fill='#ffffff', outline='#374151')
+        note(c, 1210, 830, 610, T['note2'], fill='#ffffff', outline='#374151')
 
-    # ---------------- легенда -------------------------------------------
-    lx, ly, lw, lh = 60, 1000, 1120, 150
-    legend_box(c, lx, ly, lw, lh, T['legend'])
-    r1, r2 = ly + 46, ly + 100
-    c.line([(lx + 26, r1), (lx + 46, r1)], fill=LINE, width=1.3)
-    c.arc(lx + 52, r1, 10, 270, 90, fill=LINE, width=1.4)
-    c.circle(lx + 52, r1, 6, fill='#ffffff', outline=LINE, width=1.2)
-    c.line([(lx + 62, r1), (lx + 84, r1)], fill=LINE, width=1.3)
-    c.text(lx + 96, r1 + 5, T['l1'], 10.6, 'normal', '#1f2937')
-    c.line([(lx + 450, r1), (lx + 516, r1)], fill=LINE, width=1.2, dash=(7, 5))
-    c.arrowhead((lx + 516, r1), (lx + 450, r1), 'open', LINE, 9)
-    c.text(lx + 528, r1 + 5, T['l2'], 10.6, 'normal', '#1f2937')
-    _comp_icon(c, lx + 26, r2 - 14)
-    c.text(lx + 96, r2 + 5, T['l3'], 10.6, 'normal', '#1f2937')
-    c.rect(lx + 450, r2 - 16, 46, 30, fill='#ffffff', outline='#94a3b8', width=1.3)
-    c.text(lx + 528, r2 + 5, T['l4'], 10.6, 'normal', '#1f2937')
+    if COMP_HELPERS:
+        # ---------------- легенда -------------------------------------------
+        lx, ly, lw, lh = 60, 1000, 1120, 150
+        legend_box(c, lx, ly, lw, lh, T['legend'])
+        r1, r2 = ly + 46, ly + 100
+        c.line([(lx + 26, r1), (lx + 46, r1)], fill=LINE, width=1.3)
+        c.arc(lx + 52, r1, 10, 270, 90, fill=LINE, width=1.4)
+        c.circle(lx + 52, r1, 6, fill='#ffffff', outline=LINE, width=1.2)
+        c.line([(lx + 62, r1), (lx + 84, r1)], fill=LINE, width=1.3)
+        c.text(lx + 96, r1 + 5, T['l1'], 10.6, 'normal', '#1f2937')
+        c.line([(lx + 450, r1), (lx + 516, r1)], fill=LINE, width=1.2, dash=(7, 5))
+        c.arrowhead((lx + 516, r1), (lx + 450, r1), 'open', LINE, 9)
+        c.text(lx + 528, r1 + 5, T['l2'], 10.6, 'normal', '#1f2937')
+        _comp_icon(c, lx + 26, r2 - 14)
+        c.text(lx + 96, r2 + 5, T['l3'], 10.6, 'normal', '#1f2937')
+        c.rect(lx + 450, r2 - 16, 46, 30, fill='#ffffff', outline='#94a3b8', width=1.3)
+        c.text(lx + 528, r2 + 5, T['l4'], 10.6, 'normal', '#1f2937')
 
     fname = 'component_diagram.png' if lang == COMP_LANG else 'component_diagram_%s.png' % lang
     c.save(os.path.join(OUT, fname))
