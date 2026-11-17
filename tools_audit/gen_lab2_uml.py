@@ -38,7 +38,7 @@ PAD = 7.0
 
 
 def _measure_class(spec, w):
-    h = HDR + (14 if spec.get('stereo') else 0) + (15 if spec.get('ru') else 0) + PAD
+    h = HDR + (14 if (spec.get('stereo') or spec.get('abstract')) else 0) + (15 if spec.get('ru') else 0) + PAD
     h += len(spec['attrs']) * LH + 5
     h += len(spec['ops']) * LH + 14
     return h
@@ -47,7 +47,7 @@ def _measure_class(spec, w):
 def draw_class(c, x, y, w, spec):
     stereo = spec.get('stereo')
     h = _measure_class(spec, w)
-    hdr_h = HDR + (14 if stereo else 0) + (15 if spec.get('ru') else 0)
+    hdr_h = HDR + (14 if (stereo or spec.get('abstract')) else 0) + (15 if spec.get('ru') else 0)
     GEOM['boxes'].append((spec['name'], x, y, x + w, y + h))
     c.rect(x, y, w, h, fill='#ffffff', outline=LINE, width=1.4)
     c.rect(x + 1, y + 1, w - 2.2, hdr_h - 1.6, fill='#f2f2f2', outline=None)
@@ -55,6 +55,9 @@ def draw_class(c, x, y, w, spec):
     cy = y + 15
     if stereo:
         c.text(x + w / 2, cy + 1, '«%s»' % stereo, F_STEREO, 'normal', '#374151', anchor='ms')
+        cy += 14
+    elif spec.get('abstract'):
+        c.text(x + w / 2, cy + 1, '{abstract}', F_STEREO, 'normal', '#374151', anchor='ms')
         cy += 14
     weight = 'bolditalic' if spec.get('abstract') else 'bold'
     c.text(x + w / 2, cy + 12, spec['name'], F_NAME, weight, INK, anchor='ms')
@@ -73,7 +76,8 @@ def draw_class(c, x, y, w, spec):
     return h
 
 
-GEOM = {'boxes': [], 'polys': [], 'labels': [], 'colors': [], 'ends': []}
+GEOM = {'boxes': [], 'polys': [], 'labels': [], 'colors': [], 'ends': [],
+        'mults': [], 'roles': []}
 
 
 def _poly(pts, color=LINE, width=1.3):
@@ -84,6 +88,7 @@ def _poly(pts, color=LINE, width=1.3):
 
 def _geom_reset():
     GEOM['boxes'], GEOM['polys'], GEOM['labels'], GEOM['colors'], GEOM['ends'] = [], [], [], [], []
+    GEOM['mults'], GEOM['roles'] = [], []
 
 
 def _lab(c, x, y, text, anchor='ls', size=F_MULT, fill='#111827', weight='normal'):
@@ -102,43 +107,45 @@ def _lab(c, x, y, text, anchor='ls', size=F_MULT, fill='#111827', weight='normal
 
 
 def _auto_labels(c, pts, m0=None, m1=None, r0=None, r1=None,
-                 m0_at=None, m1_at=None, r0_at=None, r1_at=None):
-    """Кратность — над линией у конца связи, имя роли — под линией."""
-    def place(pt, other, mult, role, mult_at, role_at):
+                 m0_at=None, m1_at=None, r0_at=None, r1_at=None,
+                 d0=None, d1=None):
+    """Кратность — у своего конца связи, имя роли — рядом с ней.
+
+    По UML 2.5 кратность стоит рядом с тем концом, который она описывает,
+    поэтому координаты по умолчанию отсчитываются от самого конца полилинии,
+    а не от начала обхода: иначе цифра уезжает к дальнему углу и читается как
+    относящаяся к чужому классу.
+    """
+    def place(pt, other, mult, role, mult_at, role_at, deco=None):
         dx, dy = other[0] - pt[0], other[1] - pt[1]
-        if abs(dx) >= abs(dy):        # горизонтальная связь
+        if abs(dx) >= abs(dy):              # конец на вертикальной грани класса
             sgn = 1 if dx > 0 else -1
-            manch = 'ls' if sgn > 0 else 'rs'
-            if mult:
-                if mult_at:
-                    a = mult_at[2] if len(mult_at) > 2 else 'ls'
-                    _lab(c, mult_at[0], mult_at[1], mult, a)
-                else:
-                    _lab(c, pt[0] + sgn * 8, pt[1] - 7, mult, manch)
-            if role:
-                if role_at:
-                    a = role_at[2] if len(role_at) > 2 else 'ls'
-                    _lab(c, role_at[0], role_at[1], role, a, size=9.8, fill='#374151')
-                else:
-                    _lab(c, pt[0] + sgn * 8, pt[1] + 15, role, manch,
-                         size=9.8, fill='#374151')
-        else:                          # вертикальная связь
+            manch = ranch = 'ls' if sgn > 0 else 'rs'
+            mx, my = pt[0] + sgn * 8, pt[1] - 7
+            rx, ry = pt[0] + sgn * 8, pt[1] + 15
+        else:                               # конец на горизонтальной грани класса
             sgn = 1 if dy > 0 else -1
-            if mult:
-                if mult_at:
-                    a = mult_at[2] if len(mult_at) > 2 else 'ls'
-                    _lab(c, mult_at[0], mult_at[1], mult, a)
-                else:
-                    _lab(c, pt[0] - 13, pt[1] + (14 if sgn > 0 else -8), mult, 'rs')
-            if role:
-                if role_at:
-                    a = role_at[2] if len(role_at) > 2 else 'ls'
-                    _lab(c, role_at[0], role_at[1], role, a, size=9.8, fill='#374151')
-                else:
-                    _lab(c, pt[0] + 13, pt[1] + (14 if sgn > 0 else -8), role, 'ls',
-                         size=9.8, fill='#374151')
-    place(pts[0], pts[1], m0, r0, m0_at, r0_at)
-    place(pts[-1], pts[-2], m1, r1, m1_at, r1_at)
+            manch, ranch = 'rs', 'ls'
+            mx, my = pt[0] - 13, pt[1] + (14 if sgn > 0 else -8)
+            rx, ry = pt[0] + 13, pt[1] + (14 if sgn > 0 else -8)
+        if mult:
+            a = manch
+            if mult_at:
+                mx, my = mult_at[0], mult_at[1]
+                a = mult_at[2] if len(mult_at) > 2 else 'ls'
+            _lab(c, mx, my, mult, a)
+            GEOM['mults'].append((mult,) + tuple(GEOM['labels'][-1][1:])
+                                 + (pt[0], pt[1], bool(deco)))
+        if role:
+            a = ranch
+            if role_at:
+                rx, ry = role_at[0], role_at[1]
+                a = role_at[2] if len(role_at) > 2 else 'ls'
+            _lab(c, rx, ry, role, a, size=9.8, fill='#374151')
+            GEOM['roles'].append((role,) + tuple(GEOM['labels'][-1][1:])
+                                 + (pt[0], pt[1], bool(deco)))
+    place(pts[0], pts[1], m0, r0, m0_at, r0_at, d0)
+    place(pts[-1], pts[-2], m1, r1, m1_at, r1_at, d1)
 
 
 CLASS_RU = {
@@ -171,19 +178,18 @@ def class_diagram(lang=None):
             '- degreeLevel: String', '- totalCredits: Integer = 240',
             '- maxExamsPerSession: Integer = 5', '- minPracticeCredits: Integer = 12',
             '- minGiaCredits: Integer = 6', '- approvalDate: Date'], ops=[
-            '+ check(c: Curriculum): ViolationList',
+            '+ check(curriculum: Curriculum): ViolationList',
             '+ thresholds(): Thresholds']),
         'EducationalProgram': dict(name='EducationalProgram', attrs=[
             '- id: Integer {id}', '- code: String = "09.03.04"', '- title: String',
             '- level: EducationLevel', '- studyForm: StudyForm'], ops=[
             '+ curriculums(year: String): List<Curriculum>',
-            '+ addCompetency(k: Competency): void']),
+            '+ addCompetency(competency: Competency): void']),
         'Curriculum': dict(name='Curriculum', attrs=[
-            '- id: Integer {id}', '- academicYear: String', '- version: String = "1.0"',
-            '- status: CurriculumStatus', '- totalCredits: Integer = 240',
-            '- protocolNum: String', '- protocolDate: Date',
-            '- createdAt: DateTime'], ops=[
-            '+ semesterBalance(sem: Integer): Balance',
+            '- academicYear: String', '- version: String = "1.0"',
+            '- totalCredits: Integer = 240', '- protocolNum: String',
+            '- protocolDate: Date'], ops=[
+            '+ semesterBalance(semester: Integer): Balance',
             '+ totalHours(): Integer']),
         'CurriculumDiscipline': dict(name='CurriculumDiscipline', attrs=[
             '- id: Integer {id}', '- blockType: BlockType', '- name: String',
@@ -200,12 +206,12 @@ def class_diagram(lang=None):
             '- id: Integer {id}', '- eventTime: DateTime', '- userName: String',
             '- userRole: String', '- action: String', '- entityName: String',
             '- status: String', '- ipAddress: String'], ops=[
-            '+ log(e: AuditEvent): void', '+ export(fmt: String): String']),
+            '+ log(event: AuditEvent): void', '+ export(format: String): String']),
         'Competency': dict(name='Competency', attrs=[
             '- id: Integer {id}', '- code: String = "УК-1 … ПК-4"', '- category: String',
             '- title: String', '- description: String'], ops=[
             '+ matches(pattern: String): Boolean']),
-        'Document': dict(name='Document', stereo='abstract', abstract=True, attrs=[
+        'Document': dict(name='Document', abstract=True, attrs=[
             '- id: Integer {id}', '- docType: DocType', '- status: DocumentStatus',
             '- createdAt: DateTime', '- author: String'], ops=[
             '+ sign(role: Role, hash: String): DocumentSignature',
@@ -218,17 +224,15 @@ def class_diagram(lang=None):
         'User': dict(name='User', attrs=[
             '- id: Integer {id}', '- username: String', '- fullName: String',
             '- email: String', '- positionTitle: String'], ops=[
-            '+ hasPermission(a: Action): Boolean',
+            '+ hasPermission(action: Action): Boolean',
             '+ canSign(step: Integer): Boolean']),
         'Announcement': dict(name='Announcement', attrs=[
             '- id: Integer {id}', '- title: String', '- category: String',
-            '- publishDate: Date', '- authorName: String', '- content: Text',
+            '- publishDate: Date', '- authorName: String', '- content: String',
             '- isPinned: Boolean = false'], ops=[
-            '+ isVisibleOn(d: Date): Boolean']),
+            '+ isVisibleOn(date: Date): Boolean']),
         'ServiceNote': dict(name='ServiceNote', attrs=[
-            '- id: Integer {id}', '- noteNum: String', '- noteDate: Date',
-            '- reason: String', '- status: NoteStatus', '- createdAt: DateTime',
-            '- author: String'], ops=[
+            '- noteNum: String', '- noteDate: Date', '- reason: String'], ops=[
             '+ applyChanges(): void', '+ diff(): ChangeSet']),
         'ServiceNoteItem': dict(name='ServiceNoteItem', attrs=[
             '- id: Integer {id}', '- changeType: ChangeType', '- oldValue: String',
@@ -311,7 +315,7 @@ def class_diagram(lang=None):
             c.arrowhead(pts[0], pts[1], start, LINE, 10)
         if end:
             c.arrowhead(pts[-1], pts[-2], end, LINE, 10)
-        _auto_labels(c, pts, **lab)
+        _auto_labels(c, pts, d0=start, d1=end, **lab)
 
     # 1. StandardFGOS 1 —— 1..* EducationalProgram
     _y = row_y_for('StandardFGOS', 'EducationalProgram')
@@ -328,9 +332,7 @@ def class_diagram(lang=None):
     ch = row_y[0] - 56
     pa, pb = T('EducationalProgram', 0.22), T('Department', 0.24)
     assoc([pa, (pa[0], ch), (pb[0], ch), pb],
-          m0='0..*', r0='ownerDept', m1='1',
-          m0_at=(pa[0] + 8, ch - 10), r0_at=(pa[0] + 52, ch - 10),
-          m1_at=(pb[0] + 8, ch - 10))
+          m0='0..*', r0='ownerDept', m1='1')
     # 5. Curriculum ◁—— Document
     assoc([B('Curriculum', 0.5), T('Document', 0.5)], end='hollow')
     # 6. Document ◆—— 1..* DocumentSignature
@@ -358,8 +360,7 @@ def class_diagram(lang=None):
     s1 = B('ServiceNote', 0.58)
     assoc([d1, (gx1, d1[1]), (gx1, y_ch), (s1[0], y_ch), s1],
           m0='1', m1='0..*', r1='releasingNotes',
-          m0_at=(d1[0] - 8, d1[1] - 8, 'rs'),
-          m1_at=(s1[0] + 10, y_ch - 9), r1_at=(s1[0] + 10, y_ch + 16))
+          m0_at=(d1[0] - 8, d1[1] - 8, 'rs'))
     # 11. Department 1 —— 0..* ServiceNote (обеспечивающая кафедра)
     gx2 = COLS[3] + BW + 88
     y_ch2 = y_ch + 34
@@ -367,8 +368,7 @@ def class_diagram(lang=None):
     s2 = B('ServiceNote', 0.2)
     assoc([d2, (gx2, d2[1]), (gx2, y_ch2), (s2[0], y_ch2), s2],
           m0='1', m1='0..*', r1='implementingNotes',
-          m0_at=(d2[0] - 8, d2[1] + 16, 'rs'),
-          m1_at=(s2[0] + 10, y_ch2 - 9), r1_at=(s2[0] + 10, y_ch2 + 16))
+          m0_at=(d2[0] - 8, d2[1] + 16, 'rs'))
     # 12. ServiceNote ◆—— 1..* ServiceNoteItem
     _y = row_y_for('ServiceNote', 'ServiceNoteItem', 0.42)
     assoc([RY('ServiceNote', _y), LY('ServiceNoteItem', _y)],
@@ -386,13 +386,13 @@ def class_diagram(lang=None):
     assoc([B('User', 0.42), T('Role', 0.42)], m0='0..*', r0='role', m1='1')
     # 15. User 0..* —— 0..1 Department
     assoc([T('User', 0.66), B('Department', 0.66)], m0='0..*', r0='department', m1='0..1')
-    # 16. Announcement 0..* —— 1 User (автор объявления; обход по правому полю)
+    # 16. Announcement 0..* —— 0..1 User (автор объявления; обход по правому полю)
     _ya = bottom + 170
     _yr = geo['Role'][1] - 90
     _ann = B('Announcement', 0.35)
     _usr = B('User', 0.92)
     assoc([_ann, (_ann[0], _ya), (W - 60, _ya), (W - 60, _yr), (_usr[0], _yr), _usr],
-          m0='0..*', m1='1', r1='author')
+          m0='0..*', m1='0..1', r1='author')
 
     fname = 'class_diagram.png' if lang == COMP_LANG else 'class_diagram_%s.png' % lang
     c.save(os.path.join(OUT, fname))
