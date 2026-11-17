@@ -352,19 +352,19 @@ def class_diagram(lang=None):
           r0_at=(_l9[0] - 8, _l9[1] + 16, 'rs'),
           m1_at=(_l9[0] - 8, _l9[1] - 8, 'rs'))
     # 10. Department 1 —— 0..* ServiceNote (выпускающая кафедра)
-    gx1 = COLS[3] + BW + 24
+    gx1 = COLS[3] + BW + 56
     y_ch = bottom + 44
     d1 = L('Department', 0.72)
-    s1 = B('ServiceNote', 0.2)
+    s1 = B('ServiceNote', 0.58)
     assoc([d1, (gx1, d1[1]), (gx1, y_ch), (s1[0], y_ch), s1],
           m0='1', m1='0..*', r1='releasingNotes',
           m0_at=(d1[0] - 8, d1[1] - 8, 'rs'),
           m1_at=(s1[0] + 10, y_ch - 9), r1_at=(s1[0] + 10, y_ch + 16))
     # 11. Department 1 —— 0..* ServiceNote (обеспечивающая кафедра)
-    gx2 = COLS[3] + BW + 62
+    gx2 = COLS[3] + BW + 88
     y_ch2 = y_ch + 34
     d2 = L('Department', 0.92)
-    s2 = B('ServiceNote', 0.58)
+    s2 = B('ServiceNote', 0.2)
     assoc([d2, (gx2, d2[1]), (gx2, y_ch2), (s2[0], y_ch2), s2],
           m0='1', m1='0..*', r1='implementingNotes',
           m0_at=(d2[0] - 8, d2[1] + 16, 'rs'),
@@ -373,14 +373,14 @@ def class_diagram(lang=None):
     _y = row_y_for('ServiceNote', 'ServiceNoteItem', 0.42)
     assoc([RY('ServiceNote', _y), LY('ServiceNoteItem', _y)],
           start='diamond_filled', m0='1', m1='1..*', r1='items')
-    # 13. ServiceNoteItem 0..* —— 1 CurriculumDiscipline (канал между колонками 2/3)
-    chx = COLS[2] + BW + 38
-    sni = L('ServiceNoteItem', 0.78)
-    chy = geo['CurriculumDiscipline'][1] + geo['CurriculumDiscipline'][3] + 44
+    # 13. ServiceNoteItem 0..* —— 1 CurriculumDiscipline (обход между колонками 3/4)
+    chx = COLS[3] + BW + 22
+    sni = R('ServiceNoteItem', 0.62)
+    chy = geo['CurriculumDiscipline'][1] + geo['CurriculumDiscipline'][3] + 20
     cdb = B('CurriculumDiscipline', 0.78)
     assoc([sni, (chx, sni[1]), (chx, chy), (cdb[0], chy), cdb],
           m0='0..*', r0='discipline', m1='1',
-          m0_at=(sni[0] - 14, sni[1] - 9, 'rs'), r0_at=(sni[0] - 14, sni[1] + 16, 'rs'),
+          m0_at=(sni[0] + 8, sni[1] - 9), r0_at=(sni[0] + 8, sni[1] + 16),
           m1_at=(cdb[0] + 8, cdb[1] + 16))
     # 14. User 0..* —— 1 Role
     assoc([B('User', 0.42), T('Role', 0.42)], m0='0..*', r0='role', m1='1')
