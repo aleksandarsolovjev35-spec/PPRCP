@@ -441,11 +441,14 @@ def subsystem_frame(c, x, y, w, h, name, stereo='subsystem', fill='#fcfdff'):
     c.text(x + 18 + c.tw(st, 9.6), y + 18, name, 12.2, 'bold', '#1f2937')
 
 
-def component_slim(c, x, y, w, h, name, stereo='component', fill='#eef2fb', name_size=12.6):
-    """Каноническое изображение компонента UML 2.5: ключевое слово, имя, пиктограмма."""
+def component_slim(c, x, y, w, h, name, stereo='component', fill='#eef2fb', name_size=12.6,
+                   sub=None):
+    """Компонент UML 2.5: ключевое слово, имя, пиктограмма и строка расшифровки."""
     c.rect(x, y, w, h, fill=fill, outline=LINE, width=1.4)
     c.text(x + w / 2 - 10, y + 20, '«%s»' % stereo, 9.8, 'normal', '#374151', anchor='ms')
     c.text(x + w / 2 - 10, y + 42, name, name_size, 'bold', INK, anchor='ms')
+    if sub:
+        c.text(x + w / 2 - 10, y + 61, sub, 9.8, 'italic', '#4b5563', anchor='ms')
     _comp_icon(c, x + w - 34, y + 12)
 
 
@@ -470,6 +473,14 @@ COMP_TEXTS = {
         l2='зависимость «use» (нет формального интерфейса)',
         l3='компонент: ключевое слово «component» + пиктограмма',
         l4='граница подсистемы «subsystem»',
+        subs={'PortalUI': 'клиентский уровень · web-интерфейс',
+              'HttpKernel': 'маршрутизация запросов и контроллеры',
+              'CurriculumService': 'учебные планы',
+              'FgosValidationEngine': 'проверка на ФГОС',
+              'WorkflowManager': 'визирование и ЭЦП',
+              'MemoManager': 'служебные записки',
+              'AuditLogger': 'журнал аудита',
+              'DataAccessLayer': 'доступ к данным'},
     ),
     'en': dict(
         title='Component Diagram — ANOK Center Portal',
@@ -488,6 +499,14 @@ COMP_TEXTS = {
         l2='«use» dependency (no formal interface)',
         l3='component: «component» keyword + icon',
         l4='«subsystem» boundary',
+        subs={'PortalUI': 'presentation layer · web UI',
+              'HttpKernel': 'request routing and controllers',
+              'CurriculumService': 'curricula',
+              'FgosValidationEngine': 'FGOS validation',
+              'WorkflowManager': 'approval route & e-signature',
+              'MemoManager': 'service notes',
+              'AuditLogger': 'audit trail',
+              'DataAccessLayer': 'data access'},
     ),
 }
 
@@ -501,26 +520,30 @@ def component_diagram(lang=None):
     title(c, T['title'], T['sub'])
 
     # ---------------- граница подсистемы --------------------------------
-    subsystem_frame(c, 60, 130, 1640, 660, T['subsystem'])
+    subsystem_frame(c, 60, 126, 1640, 690, T['subsystem'])
 
     # ---------------- компоненты ----------------------------------------
-    ui_w, ui_h, ui_y = 400, 78, 168
-    component_slim(c, CX - ui_w / 2, ui_y, ui_w, ui_h, 'PortalUI', fill='#e8f1fe')
+    subs = T['subs']
+    ui_w, ui_h, ui_y = 400, 92, 162
+    component_slim(c, CX - ui_w / 2, ui_y, ui_w, ui_h, 'PortalUI', fill='#e8f1fe',
+                   sub=subs['PortalUI'])
 
-    k_w, k_h, k_y = 1480, 78, 330
-    component_slim(c, CX - k_w / 2, k_y, k_w, k_h, 'HttpKernel', fill='#eef2fb')
+    k_w, k_h, k_y = 1480, 92, 330
+    component_slim(c, CX - k_w / 2, k_y, k_w, k_h, 'HttpKernel', fill='#eef2fb',
+                   sub=subs['HttpKernel'])
 
-    sv_w, sv_h, sv_y, sv_step = 264, 78, 492, 290
+    sv_w, sv_h, sv_y, sv_step = 264, 92, 498, 290
     sv_x = [CX - 2 * sv_step - sv_w / 2 + i * sv_step for i in range(5)]
     services = ['CurriculumService', 'FgosValidationEngine', 'WorkflowManager',
                 'MemoManager', 'AuditLogger']
     ifaces = ['ICurriculumService', 'IFgosValidation', 'IWorkflow',
               'IMemoProcessing', 'IAuditSink']
     for x, nm in zip(sv_x, services):
-        component_slim(c, x, sv_y, sv_w, sv_h, nm, fill='#f3f0fd')
+        component_slim(c, x, sv_y, sv_w, sv_h, nm, fill='#f3f0fd', sub=subs[nm])
 
-    d_y = 654
-    component_slim(c, CX - k_w / 2, d_y, k_w, k_h, 'DataAccessLayer', fill='#eaf5ec')
+    d_y = 666
+    component_slim(c, CX - k_w / 2, d_y, k_w, k_h, 'DataAccessLayer', fill='#eaf5ec',
+                   sub=subs['DataAccessLayer'])
 
     # ---------------- сборочные разъёмы ---------------------------------
     assembly(c, CX - 110, ui_y + ui_h, k_y, 'IPortalPages', provider='bottom', size=10.8)
@@ -543,9 +566,9 @@ def component_diagram(lang=None):
             0, 180, fill=LINE, width=4)
     c.text(CX, dby + 50, '«database» anok_portal', 12.4, 'bold', INK, anchor='ms')
     c.text(CX, dby + 72, T['tables'], 10.0, 'normal', '#374151', anchor='ms')
-    c.line([(CX, d_y + 78), (CX, dby)], fill=LINE, width=1.3, dash=(7, 5))
-    c.arrowhead((CX, dby), (CX, d_y + 78), 'open', LINE, 10)
-    c.text(CX + 14, (d_y + 78 + dby) / 2 + 4, '«use»', 10.4, 'italic', '#374151')
+    c.line([(CX, d_y + k_h), (CX, dby)], fill=LINE, width=1.3, dash=(7, 5))
+    c.arrowhead((CX, dby), (CX, d_y + k_h), 'open', LINE, 10)
+    c.text(CX + 14, (d_y + k_h + dby) / 2 + 4, '«use»', 10.4, 'italic', '#374151')
 
     # ---------------- примечания ----------------------------------------
     note(c, 60, 830, 600, T['note1'], fill='#fffdf0')
