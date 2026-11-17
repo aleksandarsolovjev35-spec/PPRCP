@@ -129,13 +129,13 @@ def _auto_labels(c, pts, m0=None, m1=None, r0=None, r1=None,
                     a = mult_at[2] if len(mult_at) > 2 else 'ls'
                     _lab(c, mult_at[0], mult_at[1], mult, a)
                 else:
-                    _lab(c, pt[0] - 9, pt[1] + (10 if sgn > 0 else -4), mult, 'rs')
+                    _lab(c, pt[0] - 13, pt[1] + (14 if sgn > 0 else -8), mult, 'rs')
             if role:
                 if role_at:
                     a = role_at[2] if len(role_at) > 2 else 'ls'
                     _lab(c, role_at[0], role_at[1], role, a, size=9.8, fill='#374151')
                 else:
-                    _lab(c, pt[0] + 9, pt[1] + (10 if sgn > 0 else -4), role, 'ls',
+                    _lab(c, pt[0] + 13, pt[1] + (14 if sgn > 0 else -8), role, 'ls',
                          size=9.8, fill='#374151')
     place(pts[0], pts[1], m0, r0, m0_at, r0_at)
     place(pts[-1], pts[-2], m1, r1, m1_at, r1_at)
@@ -174,7 +174,7 @@ def class_diagram(lang=None):
             '+ check(c: Curriculum): ViolationList',
             '+ thresholds(): Thresholds']),
         'EducationalProgram': dict(name='EducationalProgram', attrs=[
-            '- id: Integer {id}', '- code: String «09.03.04»', '- title: String',
+            '- id: Integer {id}', '- code: String = "09.03.04"', '- title: String',
             '- level: EducationLevel', '- studyForm: StudyForm'], ops=[
             '+ curriculums(year: String): List',
             '+ addCompetency(k: Competency): void']),
@@ -202,18 +202,18 @@ def class_diagram(lang=None):
             '- status: String', '- ipAddress: String'], ops=[
             '+ log(e: AuditEvent): void', '+ export(fmt: String): String']),
         'Competency': dict(name='Competency', attrs=[
-            '- id: Integer {id}', '- code: String «УК-1 … ПК-4»', '- category: String',
+            '- id: Integer {id}', '- code: String = "УК-1 … ПК-4"', '- category: String',
             '- title: String', '- description: String'], ops=[
             '+ matches(pattern: String): Boolean']),
         'Document': dict(name='Document', stereo='abstract', abstract=True, attrs=[
             '- id: Integer {id}', '- docType: DocType', '- status: DocumentStatus',
             '- createdAt: DateTime', '- author: String'], ops=[
-            '+ sign(role: Role, hash: String): Signature',
+            '+ sign(role: Role, hash: String): DocumentSignature',
             '+ verify(hash: String): Boolean', '+ nextStep(): Integer']),
         'DocumentSignature': dict(name='DocumentSignature', attrs=[
             '- id: Integer {id}', '- stepOrder: Integer {1..4}', '- roleTitle: String',
             '- signerName: String', '- status: SignatureStatus', '- comment: String',
-            '- signedAt: DateTime', '- signHash: String «SHA-256»'], ops=[
+            '- signedAt: DateTime', '- signHash: String {SHA-256}'], ops=[
             '+ verify(hash: String): Boolean', '+ format(): String']),
         'User': dict(name='User', attrs=[
             '- id: Integer {id}', '- username: String', '- fullName: String',
@@ -321,7 +321,7 @@ def class_diagram(lang=None):
           m0_at=(pa[0] + 8, ch - 10), r0_at=(pa[0] + 52, ch - 10),
           m1_at=(pb[0] + 8, ch - 10))
     # 5. Curriculum ◁—— Document
-    assoc([B('Curriculum', 0.5), T('Document', 0.5)], start='hollow')
+    assoc([B('Curriculum', 0.5), T('Document', 0.5)], end='hollow')
     # 6. Document ◆—— 1..* DocumentSignature
     _y = row_y_for('Document', 'DocumentSignature', 0.45)
     assoc([RY('Document', _y), LY('DocumentSignature', _y)],
@@ -375,39 +375,9 @@ def class_diagram(lang=None):
     # 15. User 0..* —— 0..1 Department
     assoc([T('User', 0.66), B('Department', 0.66)], m0='0..*', r0='department', m1='0..1')
 
-    _line_jumps(c)
     fname = 'class_diagram.png' if lang == COMP_LANG else 'class_diagram_%s.png' % lang
     c.save(os.path.join(OUT, fname))
 
-
-
-def _line_jumps(c, half=1.7, gap=4.2):
-    """Разрыв на пересечении связей («мост»): горизонталь проходит поверх,
-    вертикаль прерывается на несколько пикселей — вместо наплыва линия-на-линию."""
-    segs = []
-    for k, poly in enumerate(GEOM['polys']):
-        col, wd = GEOM['colors'][k] if k < len(GEOM['colors']) else (LINE, 1.3)
-        for p, q in zip(poly, poly[1:]):
-            segs.append((p, q, col, wd))
-    for i in range(len(segs)):
-        for j in range(i + 1, len(segs)):
-            p, q, cp, wp = segs[i]
-            r, s, cr, wr = segs[j]
-            vert = hor = None
-            if abs(p[0] - q[0]) < 1e-6 and abs(r[1] - s[1]) < 1e-6:
-                vert, hor = (p, q), (r, s, cr, wr)
-            elif abs(r[0] - s[0]) < 1e-6 and abs(p[1] - q[1]) < 1e-6:
-                vert, hor = (r, s), (p, q, cp, wp)
-            if not vert:
-                continue
-            x, y = vert[0][0], hor[0][1]
-            if not (min(vert[0][1], vert[1][1]) + 0.5 < y < max(vert[0][1], vert[1][1]) - 0.5):
-                continue
-            if not (min(hor[0][0], hor[1][0]) + 0.5 < x < max(hor[0][0], hor[1][0]) - 0.5):
-                continue
-            c.d.rectangle([(x - half) * c.s, (y - gap) * c.s,
-                           (x + half) * c.s, (y + gap) * c.s], fill='#ffffff')
-            c.line([(x - half, y), (x + half, y)], fill=hor[2], width=hor[3])
 
 
 # ======================================================================
@@ -645,7 +615,6 @@ def component_diagram(lang=None):
         c.rect(lx + 450, r2 - 16, 46, 30, fill='#ffffff', outline='#94a3b8', width=1.3)
         c.text(lx + 528, r2 + 5, T['l4'], 10.6, 'normal', '#1f2937')
 
-    _line_jumps(c)
     fname = 'component_diagram.png' if lang == COMP_LANG else 'component_diagram_%s.png' % lang
     c.save(os.path.join(OUT, fname))
 
@@ -765,7 +734,6 @@ def deployment_diagram(lang=None):
         c.text(xm, 306, lab[0], 9.8, 'bold', '#111827', anchor='ms')
         c.text(xm, 344, lab[1], 9.8, 'normal', '#1f2937', anchor='ms')
 
-    _line_jumps(c)
     fname = 'deployment_diagram.png' if lang == COMP_LANG else 'deployment_diagram_%s.png' % lang
     c.save(os.path.join(OUT, fname))
 

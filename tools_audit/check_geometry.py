@@ -59,9 +59,16 @@ def report(title, fn):
         for tag, pt in (('начало', poly[0]), ('конец', poly[-1])):
             if not any(on_border(pt, b) for b in g.GEOM['boxes']):
                 free_end.append((tag, tuple(round(v, 1) for v in pt)))
+    flush = []
+    for lb in g.GEOM['labels']:
+        for b in g.GEOM['boxes']:
+            dx = max(b[1] - lb[3], lb[1] - b[3])
+            dy = max(b[2] - lb[4], lb[2] - b[4])
+            if -0.5 < dx < 2 and -0.5 < dy < 2:
+                flush.append((lb[0], b[0]))
     print('%s: блоков %d, линий внутрь блоков — %d, подписей внутрь блоков — %d, '
-          'концов не на рамке блока — %d'
-          % (title, len(g.GEOM['boxes']), len(bad_seg), len(bad_lab), len(free_end)))
+          'концов не на рамке блока — %d, подписей вплотную к рамке — %d'
+          % (title, len(g.GEOM['boxes']), len(bad_seg), len(bad_lab), len(free_end), len(flush)))
     for p, q, n in bad_seg:
         print('    %s→%s пересекает %s' % (p, q, n))
     for t, n in bad_lab:
@@ -71,7 +78,7 @@ def report(title, fn):
 
 
 def report_crossings(title, fn):
-    """Пересечения связей: в генераторе они разводятся «мостом» (_line_jumps)."""
+    """Пересечения связей между собой (в плотной сетке полностью не устранимы)."""
     fn()
     segs = [(p, q) for poly in g.GEOM['polys'] for p, q in zip(poly, poly[1:])]
     n = 0
@@ -90,7 +97,7 @@ def report_crossings(title, fn):
             if (min(vert[0][1], vert[1][1]) < y < max(vert[0][1], vert[1][1]) and
                     min(hor[0][0], hor[1][0]) < x < max(hor[0][0], hor[1][0])):
                 n += 1
-    print('%s: пересечений связей — %d (все оформлены разрывом-«мостом»)' % (title, n))
+    print('%s: пересечений связей между собой — %d' % (title, n))
 
 
 if __name__ == '__main__':

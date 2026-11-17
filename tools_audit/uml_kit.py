@@ -203,12 +203,15 @@ class Canvas:
             self.line([(tx - ux * a + px * a * 1.6, ty - uy * a + py * a * 1.6),
                        (tx - ux * a - px * a * 1.6, ty - uy * a - py * a * 1.6)], fill, 1.6)
         elif kind == 'diamond_filled':
+            # Ромб композиции рисуется ОТ рамки класса НАРУЖУ, вдоль линии связи:
+            # вершина касается рамки, тело ромба лежит вне блока (иначе он ложится
+            # поверх текста последней операции).
             a = size
             b = size * 0.45
             base = (tx, ty)
-            p1 = (base[0] + ux * a + px * b, base[1] + uy * a + py * b)
-            p2 = (base[0] + ux * 2 * a, base[1] + uy * 2 * a)
-            p3 = (base[0] + ux * a - px * b, base[1] + uy * a - py * b)
+            p1 = (base[0] - ux * a + px * b, base[1] - uy * a + py * b)
+            p2 = (base[0] - ux * 2 * a, base[1] - uy * 2 * a)
+            p3 = (base[0] - ux * a - px * b, base[1] - uy * a - py * b)
             self.poly([base, p1, p2, p3], fill=fill, outline=fill, width=1)
         elif kind == 'diamond_hollow':
             a = size
