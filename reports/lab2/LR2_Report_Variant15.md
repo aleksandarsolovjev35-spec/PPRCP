@@ -102,6 +102,7 @@
    * `id` (PK), `name` (полное наименование), `short_name`, `type` (`RELEASING`, `IMPLEMENTING`, `EXPERT_ANOK`, `MANAGEMENT`), `phone`, `email`.
 7. **`document_signatures` (Маршрут согласования и ЭЦП):**
    * `id` (PK), `doc_type`, `doc_id`, `step_order` (1..4), `role_title`, `signer_name`, `status`, `comment`, `signed_at`, `sign_hash` (SHA-256).
+   * Связь (`doc_type`, `doc_id`) полиморфная — она ссылается либо на `curriculums`, либо на `service_notes`, поэтому внешний ключ в DDL не объявляется: целостность обеспечивает `WorkflowManager` при регистрации визы.
 8. **`service_notes` (Служебные записки на корректировку):**
    * `id` (PK), `curriculum_id` (FK), `note_num`, `note_date`, `reason`, `releasing_dept_id` (FK), `implementing_dept_id` (FK), `status`, `created_by`, `created_at`.
 9. **`service_note_items` (Детализация изменений по СЗ):**

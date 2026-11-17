@@ -70,8 +70,37 @@ def report(title, fn):
         print('    %s связи %s не лежит на рамке блока' % (tag, pt))
 
 
+def report_crossings(title, fn):
+    """Пересечения связей: в генераторе они разводятся «мостом» (_line_jumps)."""
+    fn()
+    segs = [(p, q) for poly in g.GEOM['polys'] for p, q in zip(poly, poly[1:])]
+    n = 0
+    for i in range(len(segs)):
+        for j in range(i + 1, len(segs)):
+            p, q = segs[i]
+            r, s = segs[j]
+            vert = hor = None
+            if abs(p[0] - q[0]) < 1e-6 and abs(r[1] - s[1]) < 1e-6:
+                vert, hor = (p, q), (r, s)
+            elif abs(r[0] - s[0]) < 1e-6 and abs(p[1] - q[1]) < 1e-6:
+                vert, hor = (r, s), (p, q)
+            if not vert:
+                continue
+            x, y = vert[0][0], hor[0][1]
+            if (min(vert[0][1], vert[1][1]) < y < max(vert[0][1], vert[1][1]) and
+                    min(hor[0][0], hor[1][0]) < x < max(hor[0][0], hor[1][0])):
+                n += 1
+    print('%s: пересечений связей — %d (все оформлены разрывом-«мостом»)' % (title, n))
+
+
 if __name__ == '__main__':
     report('компоненты', lambda: g.component_diagram('ru'))
     report('развёртывание', lambda: g.deployment_diagram('ru'))
     report('классы', lambda: g.class_diagram('ru'))
     report('схема БД', g.db_schema_diagram)
+    print()
+    for title, fn in (('компоненты', lambda: g.component_diagram('ru')),
+                      ('развёртывание', lambda: g.deployment_diagram('ru')),
+                      ('классы', lambda: g.class_diagram('ru')),
+                      ('схема БД', g.db_schema_diagram)):
+        report_crossings(title, fn)

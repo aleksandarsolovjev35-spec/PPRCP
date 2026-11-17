@@ -73,11 +73,17 @@ def draw_class(c, x, y, w, spec):
     return h
 
 
-GEOM = {'boxes': [], 'polys': [], 'labels': []}
+GEOM = {'boxes': [], 'polys': [], 'labels': [], 'colors': []}
+
+
+def _poly(pts, color=LINE, width=1.3):
+    """Регистрирует ломаную связи вместе с её цветом (для разрывов на пересечениях)."""
+    GEOM['polys'].append(list(pts))
+    GEOM['colors'].append((color, width))
 
 
 def _geom_reset():
-    GEOM['boxes'], GEOM['polys'], GEOM['labels'] = [], [], []
+    GEOM['boxes'], GEOM['polys'], GEOM['labels'], GEOM['colors'] = [], [], [], []
 
 
 def _lab(c, x, y, text, anchor='ls', size=F_MULT, fill='#111827', weight='normal'):
@@ -286,7 +292,7 @@ def class_diagram(lang=None):
         return min(y1, y2) + t * min(h1, h2)
 
     def assoc(pts, start=None, end=None, dash=None, **lab):
-        GEOM['polys'].append(list(pts))
+        _poly(pts, LINE, 1.3)
         c.line(pts, fill=LINE, width=1.3, dash=dash)
         if start:
             c.arrowhead(pts[0], pts[1], start, LINE, 10)
@@ -369,9 +375,39 @@ def class_diagram(lang=None):
     # 15. User 0..* —— 0..1 Department
     assoc([T('User', 0.66), B('Department', 0.66)], m0='0..*', r0='department', m1='0..1')
 
+    _line_jumps(c)
     fname = 'class_diagram.png' if lang == COMP_LANG else 'class_diagram_%s.png' % lang
     c.save(os.path.join(OUT, fname))
 
+
+
+def _line_jumps(c, half=1.7, gap=4.2):
+    """Разрыв на пересечении связей («мост»): горизонталь проходит поверх,
+    вертикаль прерывается на несколько пикселей — вместо наплыва линия-на-линию."""
+    segs = []
+    for k, poly in enumerate(GEOM['polys']):
+        col, wd = GEOM['colors'][k] if k < len(GEOM['colors']) else (LINE, 1.3)
+        for p, q in zip(poly, poly[1:]):
+            segs.append((p, q, col, wd))
+    for i in range(len(segs)):
+        for j in range(i + 1, len(segs)):
+            p, q, cp, wp = segs[i]
+            r, s, cr, wr = segs[j]
+            vert = hor = None
+            if abs(p[0] - q[0]) < 1e-6 and abs(r[1] - s[1]) < 1e-6:
+                vert, hor = (p, q), (r, s, cr, wr)
+            elif abs(r[0] - s[0]) < 1e-6 and abs(p[1] - q[1]) < 1e-6:
+                vert, hor = (r, s), (p, q, cp, wp)
+            if not vert:
+                continue
+            x, y = vert[0][0], hor[0][1]
+            if not (min(vert[0][1], vert[1][1]) + 0.5 < y < max(vert[0][1], vert[1][1]) - 0.5):
+                continue
+            if not (min(hor[0][0], hor[1][0]) + 0.5 < x < max(hor[0][0], hor[1][0]) - 0.5):
+                continue
+            c.d.rectangle([(x - half) * c.s, (y - gap) * c.s,
+                           (x + half) * c.s, (y + gap) * c.s], fill='#ffffff')
+            c.line([(x - half, y), (x + half, y)], fill=hor[2], width=hor[3])
 
 
 # ======================================================================
@@ -424,7 +460,7 @@ def assembly(c, x, y_top, y_bot, name=None, provider='top', size=11.0):
     стороны расположен компонент-поставщик интерфейса."""
     r_ball, r_sock = 6.5, 10.0
     ym = (y_top + y_bot) / 2
-    GEOM['polys'].append([(x, y_top), (x, ym), (x, y_bot)])
+    _poly([(x, y_top), (x, ym), (x, y_bot)], LINE, 1.4)
     if provider == 'top':          # поставщик сверху: гнездо потребителя снизу
         c.line([(x, y_top), (x, ym - r_ball)], fill=LINE, width=1.4)
         c.arc(x, ym, r_sock, 0, 180, fill=LINE, width=1.5)
@@ -609,6 +645,7 @@ def component_diagram(lang=None):
         c.rect(lx + 450, r2 - 16, 46, 30, fill='#ffffff', outline='#94a3b8', width=1.3)
         c.text(lx + 528, r2 + 5, T['l4'], 10.6, 'normal', '#1f2937')
 
+    _line_jumps(c)
     fname = 'component_diagram.png' if lang == COMP_LANG else 'component_diagram_%s.png' % lang
     c.save(os.path.join(OUT, fname))
 
@@ -722,12 +759,13 @@ def deployment_diagram(lang=None):
 
     # ---------------- пути связи -----------------------------------------
     for x0, x1, lab in ((480, 700, T['p1']), (1200, 1420, T['p2'])):
-        GEOM['polys'].append([(x0, 320), (x1, 320)])
+        _poly([(x0, 320), (x1, 320)], LINE, 1.6)
         c.line([(x0, 320), (x1, 320)], fill=LINE, width=1.6)
         xm = (x0 + x1) / 2
         c.text(xm, 306, lab[0], 9.8, 'bold', '#111827', anchor='ms')
         c.text(xm, 344, lab[1], 9.8, 'normal', '#1f2937', anchor='ms')
 
+    _line_jumps(c)
     fname = 'deployment_diagram.png' if lang == COMP_LANG else 'deployment_diagram_%s.png' % lang
     c.save(os.path.join(OUT, fname))
 
@@ -831,7 +869,7 @@ class Seq:
             if it[0] == 'msg':
                 _, a, b, kind, y, text = it
                 x1, x2 = self.xs[a], self.xs[b]
-                GEOM['polys'].append([(x1, y), (x2, y)])
+                _poly([(x1, y), (x2, y)], '#334155', 1.3)
                 if kind == 'sync':
                     c.line([(x1, y), (x2, y)], fill=LINE, width=1.4)
                     c.arrowhead((x2, y), (x1, y), 'filled', LINE, 10)
@@ -1095,11 +1133,9 @@ def db_schema_diagram():
                          for (c, r, cols) in tables.values() if r == row)
         if row < 2:
             row_y.append(row_y[row] + row_h[row] + 152)
-    H = row_y[2] + row_h[2] + 260
+    H = row_y[2] + row_h[2] + 110
     c = Canvas(W, H, scale=2)
-    title(c, 'Реляционная схема базы данных anok_portal — 13 таблиц, 3NF (нотация «воронья лапка»)',
-          'PK — первичный ключ, FK — внешний ключ; полужирный тип — обязательное поле (NOT NULL), '
-          'обычный — допускает NULL; «воронья лапка» — сторона «многие», кружок — необязательность связи.')
+    title(c, 'Схема базы данных anok_portal — 13 таблиц, 3NF')
 
     geo = {}
     _geom_reset()
@@ -1124,7 +1160,7 @@ def db_schema_diagram():
         return geo[t]['y'] + geo[t]['h']
 
     def er(pts, child_end=None, parent_end=None, c_labs=(), p_labs=()):
-        GEOM['polys'].append(list(pts))
+        _poly(pts, '#334155', 1.3)
         c.line(pts, fill='#334155', width=1.3)
         if child_end:
             er_end(c, pts[0], pts[1], child_end, *c_labs)
@@ -1189,28 +1225,6 @@ def db_schema_diagram():
     er([(COLS[4] + 210, Top('service_note_items')),
         (COLS[4] + 210, Bot('curriculum_disciplines'))],
        'zero-many', 'zero-one', c_labs=('0..*', (10, -10)), p_labs=('0..1', (8, 15)))
-
-    # ---------------------------------------------------------- примечания
-    ny = row_y[2] + row_h[2] + 44
-    note(c, COLS[0] + 20, ny, 470, [
-        'document_signatures — полиморфная связь',
-        '(doc_type, doc_id) на curriculums / service_notes:',
-        'внешний ключ в DDL не объявляется, целостность',
-        'обеспечивается на уровне WorkflowManager.'],
-        fill='#fffdf0')
-    c.line([(COLS[0] + 240, Bot('document_signatures')), (COLS[0] + 240, ny)],
-           fill='#8a6d00', width=1.0, dash=(6, 4))
-
-    # ---------------------------------------------------------- легенда
-    lx, ly, lw = COLS[4] + 10, row_y[2] + 10, 390
-    legend_box(c, lx, ly, lw, 176, 'Нотация связей')
-    c.line([(lx + 20, ly + 46), (lx + 128, ly + 46)], fill='#334155', width=1.3)
-    er_end(c, (lx + 20, ly + 46), (lx + 128, ly + 46), 'zero-one')
-    er_end(c, (lx + 128, ly + 46), (lx + 20, ly + 46), 'zero-many')
-    c.text(lx + 18, ly + 82, '"воронья лапка" — сторона «многие» (0..*)', 10.0, 'normal', '#374151')
-    c.text(lx + 18, ly + 102, 'черта — сторона «один» (0..1)', 10.0, 'normal', '#374151')
-    c.text(lx + 18, ly + 122, 'кружок — необязательность связи (nullable FK)', 10.0, 'normal', '#374151')
-    c.text(lx + 18, ly + 148, 'стрелка не рисуется: направление задаёт FK', 10.0, 'normal', MUTED)
 
     c.save(os.path.join(OUT, 'db_schema_diagram.png'))
 
