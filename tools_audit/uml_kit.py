@@ -269,9 +269,10 @@ class Canvas:
                               (lx + w) * self.s + 2 * self.s, (ly + 3) * self.s], fill=bg)
         self.text(lx, ly, label, size, weight, fill)
 
-    def save(self, path):
+    def save(self, path, *, output_scale=1):
+        """Масштаб PNG относительно проектных единиц (независим от суперсэмплинга)."""
         os.makedirs(os.path.dirname(path), exist_ok=True)
-        im = self.im.resize((int(self.w), int(self.h)), Image.LANCZOS)
+        im = self.im.resize((int(self.w * output_scale), int(self.h * output_scale)), Image.LANCZOS)
         im.save(path, optimize=True)
         return path
 

@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 """Regenerates architecture diagrams consistent with the actual code & data.
 
-UML-диаграммы ЛР № 2 (классы, компоненты, развёртывание, последовательность,
-реляционная схема) вынесены в отдельный модуль ``gen_lab2_uml.py`` и
-строятся по полной нотации UML 2.5.
+Варианты использования ЛР № 1 строятся модулем ``gen_use_case.py``;
+классы, компоненты, развёртывание, последовательность и реляционная схема
+ЛР № 2 — модулем ``gen_lab2_uml.py``.
 """
 import os
 import sys
@@ -15,59 +15,9 @@ def F(sz, bold=False):
 BG='#f8fafc'; INK='#0f172a'; MUT='#64748b'; BLUE='#2563eb'; LB='#dbeafe'; BORDER='#e2e8f0'
 OUT=f'{ROOT}/diagrams'
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from gen_use_case import use_case
 
 def tx(d,x,y,s,sz=13,b=False,c=INK): d.text((x,y),s,font=F(sz,b),fill=c)
-
-# ---------------------------------------------------------------- use case
-def use_case():
-    W,Hh=2200,2160; im=Image.new('RGB',(W,Hh),BG); d=ImageDraw.Draw(im)
-    tx(d,60,30,'Диаграмма вариантов использования — портал Центра АНОК',22,True)
-    d.rounded_rectangle([430,90,W-430,Hh-40],16,outline=BLUE,width=2)
-    tx(d,760,104,'ГРАНИЦА СИСТЕМЫ: КОРПОРАТИВНЫЙ ПОРТАЛ УНИВЕРСИТЕТА (МОДУЛЬ АНОК)',13,True,BLUE)
-    actorsL=[('Руководитель выпускающего\nподразделения (HEAD_RELEASING)',180),('Руководитель реализующего\nподразделения (HEAD_IMPLEMENTING)',480),
-             ('Секретарь Ученого совета\n(COUNCIL_SEC)',900),('Преподаватель / Студент\n(VIEWER)',1300)]
-    actorsR=[('Эксперт Центра АНОК\n(EXPERT_ANOK)',180),('Начальник Центра АНОК\n(HEAD_ANOK)',480),('Проректор по учебной работе\n(VICE_RECTOR)',780),
-             ('Ректор университета\n(RECTOR)',1080),('Администратор портала\n(ADMIN)',1500)]
-    apos={}
-    for name,y in actorsL:
-        d.rounded_rectangle([40,y,W and 380,y+110],10,fill='#eff6ff',outline='#bfdbfe')
-        d.ellipse([70,y+30,110,y+70],fill=BLUE)
-        for i,ln in enumerate(name.split('\n')): tx(d,125,y+28+i*22,ln,12,i==0)
-        apos[name.split('\n')[0]]= (380,y+55,'L')
-    for name,y in actorsR:
-        d.rounded_rectangle([W-380,y,W-40,y+110],10,fill='#f5f3ff',outline='#ddd6fe')
-        d.ellipse([W-110,y+30,W-70,y+70],fill='#7c3aed')
-        for i,ln in enumerate(name.split('\n')): tx(d,W-360,y+28+i*22,ln,12,i==0)
-        apos[name.split('\n')[0]]=(W-380,y+55,'R')
-    groups=[('БЛОК 1: УЧЕБНЫЕ ПЛАНЫ',[('UC-1 Просмотр реестра УП',['VIEWER','HEAD_RELEASING']),
-        ('UC-2 Просмотр УП по семестрам (1–8)',['VIEWER']),('UC-3 Анализ нагрузки и СРС',['VIEWER','EXPERT_ANOK'])]),
-      ('БЛОК 2: ЭКСПЕРТИЗА ФГОС 3++',[('UC-4 Автоматическая валидация УП',['EXPERT_ANOK','HEAD_ANOK']),
-        ('UC-5 Контроль лимита экзаменов (≤ 5)',['EXPERT_ANOK']),('UC-6 Протокол замечаний',['EXPERT_ANOK','HEAD_ANOK'])]),
-      ('БЛОК 3: СОГЛАСОВАНИЕ И ЭЦП',[('UC-7 Наложение визы ЭЦП',['HEAD_RELEASING','HEAD_ANOK','VICE_RECTOR','RECTOR']),
-        ('UC-8 Просмотр цепочки подписания и SHA-256',['VIEWER','HEAD_RELEASING']),('UC-9 Утверждение протокола УС',['COUNCIL_SEC','RECTOR'])]),
-      ('БЛОК 4: СЛУЖЕБНЫЕ ЗАПИСКИ',[('UC-10 Создание СЗ на изменение УП',['HEAD_RELEASING']),
-        ('UC-11 Сравнение версий «Было → Стало»',['HEAD_RELEASING','HEAD_IMPLEMENTING']),
-        ('UC-12 Согласование обеспечивающей кафедрой',['HEAD_IMPLEMENTING']),('UC-13 Применение правок в УП',['EXPERT_ANOK'])]),
-      ('БЛОК 5: СПРАВОЧНИКИ И АДМИНИСТРИРОВАНИЕ',[('UC-14 Матрица компетенций (УК/ОПК/ПК)',['VIEWER']),
-        ('UC-15 Справочник подразделений и контактов',['VIEWER','ADMIN']),('UC-16 Лента регламентов и объявлений',['VIEWER','HEAD_ANOK']),
-        ('UC-17 Журнал аудита действий',['ADMIN'])])]
-    keymap={'VIEWER':'Преподаватель / Студент','HEAD_RELEASING':'Руководитель выпускающего','HEAD_IMPLEMENTING':'Руководитель реализующего',
-      'COUNCIL_SEC':'Секретарь Ученого совета','EXPERT_ANOK':'Эксперт Центра АНОК','HEAD_ANOK':'Начальник Центра АНОК','VICE_RECTOR':'Проректор по учебной работе',
-      'RECTOR':'Ректор университета','ADMIN':'Администратор портала'}
-    y=150
-    for gname,ucs in groups:
-        d.rounded_rectangle([470,y,W-470,y+34],6,fill='#e2e8f0')
-        tx(d,900,y+8,gname,12,True,'#334155'); y+=44
-        for uc,acs in ucs:
-            ecx=1100; ecy=y+42
-            d.ellipse([ecx-230,ecy-36,ecx+230,ecy+36],fill='#ffffff',outline=BLUE,width=2)
-            tx(d,ecx-d.textlength(uc,font=F(13,True))/2,ecy-9,uc,13,True)
-            for a in acs:
-                ax,ay,side=apos[keymap[a]]
-                d.line([(ax,ay),(ecx-230 if side=='L' else ecx+230,ecy)],fill='#94a3b8',width=1)
-            y+=92
-        y+=18
-    im.save(f'{OUT}/use_case_diagram.png')
 
 # ---------------------------------------------------------------- sitemap
 def sitemap():

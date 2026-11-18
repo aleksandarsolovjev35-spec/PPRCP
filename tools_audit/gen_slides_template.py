@@ -57,6 +57,40 @@ def wrap(s, sz, maxw, bold=False):
     return out
 
 
+def read_cms_comparison(path):
+    """Одна матрица для отчёта ЛР1 и слайда 6. Итоги проверяем до отрисовки."""
+    table = []
+    with open(path, encoding='utf-8') as f:
+        for line in f:
+            if not line.strip().startswith('|'):
+                if table:
+                    break
+                continue
+            cells = [cell.strip() for cell in line.strip().strip('|').split('|')]
+            if table or cells[:2] == ['Критерий', 'Вес']:
+                table.append(cells)
+    if len(table) < 4:
+        raise ValueError('В отчёте ЛР1 нет заполненной таблицы «Критерий | Вес».')
+    header, _, *criteria, published = table  # вторая строка — разделитель Markdown
+    if len(header) < 3 or any(len(row) != len(header) for row in [*criteria, published]):
+        raise ValueError('Неполная строка в таблице сравнения CMS.')
+    weights = [int(row[1].removesuffix('%').strip()) for row in criteria]
+    scores = [[int(cell) for cell in row[2:]] for row in criteria]
+    if sum(weights) != 100 or min(weights) <= 0:
+        raise ValueError('Веса критериев должны быть положительными и давать 100 %.')
+    if any(not 1 <= score <= 5 for row in scores for score in row):
+        raise ValueError('Оценки CMS должны быть в диапазоне 1–5.')
+    # Целые проценты дают точный итог в сотых долях балла.
+    totals = [sum(w * s for w, s in zip(weights, column)) for column in zip(*scores)]
+    result = ['Итог с весами', '100 %', *(f'{v // 100},{v % 100:02d}' for v in totals)]
+    if result != published:
+        raise ValueError(f'Итог в ЛР1 не совпадает с расчётом: {result}')
+    if totals.count(max(totals)) != 1:
+        raise ValueError('У нескольких CMS одинаковая итоговая оценка: требуется обосновать выбор.')
+    best_col = 2 + totals.index(max(totals))
+    return header, [*criteria, result], header[best_col], result[best_col]
+
+
 class Slide:
     def __init__(self):
         self.im = Image.new('RGB', (W, H), 'white')
@@ -91,46 +125,33 @@ class Slide:
             self.y += gap
         self.y += lh
 
-    def table(self, head, rows, col0=420, head_h=112, row_h=92, sz=25):
-        """Таблица шаблона: синяя шапка, светлые строки, диагональ в 1-й ячейке."""
-        total = W - 2 * M
-        ncol = len(head)
-        cw = [col0] + [(total - col0) / (ncol - 1)] * (ncol - 1)
-        x, y = M, self.y
-        self.d.rectangle([x, y, x + total, y + head_h], fill=BLUE)
-        cx = x
-        for i, h in enumerate(head):
-            if i:
-                self.d.line([cx, y, cx, y + head_h], fill='white', width=3)
-            if h:
-                lines = wrap(h, sz, cw[i] - 26, True)[:2]
-                lh = int(sz * 1.2)
-                ty = y + head_h / 2 - (len(lines) - 1) * lh / 2
-                for k, ln in enumerate(lines):
-                    self.d.text((cx + cw[i] / 2, ty + k * lh), ln, font=F(sz, True),
-                                fill='white', anchor='mm')
-            cx += cw[i]
-        # диагональ и подписи «критерий / средство» в левой ячейке шапки
-        self.d.line([x, y + head_h, x + cw[0], y], fill='white', width=3)
-        self.d.text((x + 16, y + 12), 'Критерий', font=F(24), fill='white', anchor='la')
-        self.d.text((x + cw[0] - 16, y + head_h - 40), 'Средство', font=F(24),
-                    fill='white', anchor='la')
-        y += head_h
-        for r, row in enumerate(rows):
-            self.d.rectangle([x, y, x + total, y + row_h],
-                             fill=ROW_A if r % 2 == 0 else ROW_B)
-            cx = x
-            for i, cell in enumerate(row):
-                if i:
-                    self.d.line([cx, y, cx, y + row_h], fill='white', width=3)
-                lines = wrap(cell, sz, cw[i] - 26)[:2]
-                lh = int(sz * 1.2)
-                ty = y + row_h / 2 - (len(lines) - 1) * lh / 2
-                for k, ln in enumerate(lines):
-                    self.d.text((cx + 14, ty + k * lh), ln, font=F(sz), fill=BLACK, anchor='lm')
-                cx += cw[i]
-            y += row_h
-        self.y = y + 34
+    def comparison_table(self, header, rows):
+        """Матрица оценок: названия слева, веса и баллы по центру своих столбцов."""
+        total_w = W - 2 * M
+        cms_count = len(header) - 2
+        widths = [460, 150] + [(total_w - 610) / cms_count] * cms_count
+        y = self.y
+        for i, row in enumerate([header, *rows]):
+            is_header, is_total = i == 0, i == len(rows)
+            h = 84 if is_header else 92
+            bg = BLUE if is_header else (ROW_A if i % 2 else ROW_B)
+            self.d.rectangle((M, y, W - M, y + h), fill=bg)
+            if is_total:
+                self.d.line((M, y, W - M, y), fill=BLUE, width=3)
+            font = F(31, is_header or is_total)
+            x = M
+            for j, (cell, width) in enumerate(zip(row, widths)):
+                if j:
+                    self.d.line((x, y, x, y + h), fill='white', width=3)
+                anchor = 'mm' if j else 'lm'
+                pos = (x + (width / 2 if j else 18), y + h / 2)
+                l, t, r, b = self.d.textbbox(pos, cell, font=font, anchor=anchor)
+                if not (x + 10 <= l <= r <= x + width - 10 and y + 8 <= t <= b <= y + h - 8):
+                    raise ValueError(f'Текст не помещается в ячейку сравнения: {cell}')
+                self.d.text(pos, cell, font=font, fill='white' if is_header else BLACK, anchor=anchor)
+                x += width
+            y += h
+        self.y = y + 40
 
     def picture(self, path, bottom=H - 46, pad_top=22):
         im = Image.open(path).convert('RGB')
@@ -228,16 +249,14 @@ s.save('tpl_slide_05_requirements.png')
 # ------------------------------------------------------------------ 6. сравнение
 s = Slide()
 s.title('Результат сравнения инструментальных средств разработки портала', sz=52)
-s.table(
-    ['', 'Drupal 11 + PHP', 'Собственный модуль (Python)', '1С-Битрикс'],
-    [
-        ['Готовый предметный модуль', 'нужен свой', 'входит в проект', 'нет'],
-        ['Стоимость лицензии', '0 ₽', '0 ₽', 'от 150 000 ₽'],
-        ['Требования к хостингу', 'PHP 8.4 + MySQL', 'Python 3.11 + SQLite', 'PHP + MySQL, 512 МБ'],
-        ['Скорость развёртывания', 'средняя', 'высокая', 'низкая'],
-        ['Гибкость доработки', 'средняя', 'высокая', 'средняя'],
-        ['Вывод', 'избыточен для ЛР', 'выбран', 'избыточен по цене'],
-    ], col0=420, sz=25)
+header, rows, winner, score = read_cms_comparison(
+    os.path.join(ROOT, 'reports', 'lab1', 'LR1_Report_Variant15.md'))
+s.d.text((M, s.y), 'Шкала: 1–5 баллов (5 — максимум). Итог = Σ (балл × доля критерия).',
+         font=F(29), fill='#44546a', anchor='lt')
+s.y += 62
+s.comparison_table(header, rows)
+s.d.text((M, s.y), f'Для портала Центра АНОК выбрана CMS {winner} — {score} из 5.',
+         font=F(35, True), fill=BLACK, anchor='lt')
 s.save('tpl_slide_06_comparison.png')
 
 # ------------------------------------------------------------------ 7. классы
