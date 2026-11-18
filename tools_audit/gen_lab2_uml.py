@@ -846,10 +846,23 @@ class Seq:
                 c.text(x, self.top + 8, '«%s»' % stereo, 9.2, 'normal', '#4b5563', anchor='ms')
                 c.text(x, self.top + 26, name, 11.0, 'bold', INK, anchor='ms')
                 head_bottom.append(self.top + 38)
-        # 2. рамки фрагментов (под всеми сообщениями)
+        # 2. контуры рамок фрагментов — под линиями жизни и полосами активности
         for (x0, x1, op, guards, in_tab, y0, y1) in self.frags:
             c.rect(x0, y0, x1 - x0, y1 - y0, fill=None, outline='#374151', width=1.3,
                    dash=(7, 5))
+        # 3. линии жизни (пунктир) — после рамок, до сообщений
+        for x, hb in zip(self.xs, head_bottom):
+            c.line([(x, hb), (x, self.bottom)], fill='#6b7280', width=1.1, dash=(6, 5))
+            GEOM['lifelines'].append(x)
+        # 4. полосы активности — до сообщений
+        for (i, y0, y1, level) in self.acts:
+            x = self.xs[i] + level * 7
+            c.rect(x - 7, y0, 14, max(20, y1 - y0), fill='#f4f6fb', outline='#374151', width=1.2)
+            self._bars.append((x, y0, y0 + max(20, y1 - y0)))
+            GEOM['bars'].append((x, y0, y0 + max(20, y1 - y0)))
+        # Рамки фрагментов — ПОВЕРХ линий жизни и полос активности:
+        # вкладка оператора непрозрачная, иначе полоса активации режет слово «loop»
+        for (x0, x1, op, guards, in_tab, y0, y1) in self.frags:
             tab_w = 58
             if in_tab and guards:
                 tab_w = max(58, 66 + c.tw(guards[0][1], 10.0) + 10)
@@ -865,16 +878,7 @@ class Seq:
                     c.line([(x0 + 1, gy), (x1 - 1, gy)], fill='#374151', width=1.1, dash=(7, 5))
                     gx, gy_text = x0 + 12, gy + 19
                 self.guards_draw.append((gx, gy_text, guard))
-        # 3. линии жизни (пунктир) — после рамок, до сообщений
-        for x, hb in zip(self.xs, head_bottom):
-            c.line([(x, hb), (x, self.bottom)], fill='#6b7280', width=1.1, dash=(6, 5))
-            GEOM['lifelines'].append(x)
-        # 4. полосы активности — до сообщений
-        for (i, y0, y1, level) in self.acts:
-            x = self.xs[i] + level * 7
-            c.rect(x - 7, y0, 14, max(20, y1 - y0), fill='#f4f6fb', outline='#374151', width=1.2)
-            self._bars.append((x, y0, y0 + max(20, y1 - y0)))
-            GEOM['bars'].append((x, y0, y0 + max(20, y1 - y0)))
+
         # 5. guard'ы фрагментов — поверх линий жизни и полос активности
         for gx, gy_text, guard in self.guards_draw:
             w = c.tw(guard, 10.0)
