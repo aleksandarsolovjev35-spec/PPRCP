@@ -904,6 +904,10 @@ class Seq:
                 if kind == 'sync':
                     c.line([(x1, y), (x2, y)], fill=LINE, width=1.4)
                     c.arrowhead((x2, y), (x1, y), 'filled', LINE, 10)
+                elif kind == 'async':
+                    # асинхронное сообщение (сигнал): сплошная линия, открытый наконечник
+                    c.line([(x1, y), (x2, y)], fill=LINE, width=1.4)
+                    c.arrowhead((x2, y), (x1, y), 'open', LINE, 10)
                 else:
                     c.line([(x1, y), (x2, y)], fill=LINE, width=1.5, dash=(5, 4))
                     c.arrowhead((x2, y), (x1, y), 'open', LINE, 10)
@@ -1005,83 +1009,91 @@ def _build_sequence(c, top, bottom):
     sq = Seq(c, xs, heads, top, bottom)
 
     # --- 1. открытие формы плана: только чтение ----------------------------
+    # каждый вызов закрыт своим возвратом: 1 закрыт на 6, 2 — на 5, 3 — на 4
     m1 = sq.msg(0, 4, '1. Открыть форму плана: GET ?page=plan&id=1')
     m2 = sq.msg(4, 5, '2. load(planId = 1) — запрос данных плана')
     m3 = sq.msg(5, 7, '3. findById(planId = 1) — SELECT curriculum')
     m4 = sq.msg(7, 5, '4. curriculum: 51 дисциплина, 240 з.е.', kind='return')
-    m5 = sq.msg(5, 4, '5. renderForm(curriculum, sem = 1…8)', kind='return', dy=62)
+    m5 = sq.msg(5, 4, '5. renderForm(curriculum, sem = 1…8)', kind='return', dy=58)
+    m6 = sq.msg(4, 0, '6. Форма плана отрисована', kind='return', dy=66)
     sq.act(7, m3, m4)
     # --- 2. сохранение проекта и первичная ЭЦП -----------------------------
-    m6 = sq.msg(0, 4, '6. «Сохранить проект и подписать ЭЦП» (POST)')
-    m7 = sq.msg(4, 5, '7. save(curriculum); sign(step = 1)')
-    m8 = sq.msg(5, 7, '8. save(curriculum) — INSERT / UPDATE')
-    m9 = sq.msg(7, 5, '9. curriculumId = 1', kind='return', dy=48)
-    m10 = sq.msg(5, 6, '10. sign(CURRICULUM, step = 1, signer : User)')
-    m11 = sq.msg(6, 7, '11. saveSignature(step = 1, sha256)')
-    m12 = sq.msg(7, 6, '12. signatureId = 1', kind='return', dy=48)
-    m13 = sq.msg(6, 5, '13. signHash = 3f9c… (ЭЦП этапа 1)', kind='return', dy=52)
-    sq.act(7, m8, m9)
-    sq.act(7, m11, m12)
+    m7 = sq.msg(0, 4, '7. «Сохранить проект и подписать ЭЦП» (POST)')
+    m8 = sq.msg(4, 5, '8. save(curriculum); sign(step = 1)')
+    m9 = sq.msg(5, 7, '9. save(curriculum) — INSERT / UPDATE')
+    m10 = sq.msg(7, 5, '10. curriculumId = 1', kind='return', dy=48)
+    m11 = sq.msg(5, 6, '11. sign(CURRICULUM, step = 1, signer : User)')
+    m12 = sq.msg(6, 7, '12. saveSignature(step = 1, sha256)')
+    m13 = sq.msg(7, 6, '13. signatureId = 1', kind='return', dy=48)
+    m14 = sq.msg(6, 5, '14. signHash = 3f9c… (ЭЦП этапа 1)', kind='return', dy=52)
+    sq.act(7, m9, m10)
+    sq.act(7, m12, m13)
     # --- 3. автоматическая валидация ФГОС ----------------------------------
-    m14 = sq.msg(5, 8, '14. validate(curriculumId = 1)')
-    m15 = sq.msg(8, 7, '15. findDisciplines(curriculumId = 1)')
-    m16 = sq.msg(7, 8, '16. disciplines[51]', kind='return', dy=48)
-    sq.act(7, m15, m16)
-    m17 = sq.self_msg(8, '17. checkTotals() · checkSessionExams() · checkPractice()')
-    y_alt = m17 + 42          # рамка не должна ложиться на возврат self-сообщения
+    m15 = sq.msg(5, 8, '15. validate(curriculumId = 1)')
+    m16 = sq.msg(8, 7, '16. findDisciplines(curriculumId = 1)')
+    m17 = sq.msg(7, 8, '17. disciplines[51]', kind='return', dy=48)
+    sq.act(7, m16, m17)
+    m18 = sq.self_msg(8, '18. checkTotals() · checkSessionExams() · checkPractice()')
+    y_alt = m18 + 42          # рамка не должна ложиться на возврат self-сообщения
     # ---- фрагмент alt: оператор 1 [нарушений нет] -------------------------
-    m18 = sq.msg(8, 5, '18. ValidationReport(passed = true)', kind='return', dy=64)
-    m19 = sq.msg(5, 4, '19. renderReport(report) — протокол проверки', kind='return', dy=70)
-    # ---- вложенный loop внутри успешной ветви -----------------------------
-    y_loop = m19 + 26
-    sq.y += 30                      # отступ под шапку вложенного фрагмента
-    m20 = sq.msg(1, 4, '20. Подписант шага k открывает протокол ФГОС')
-    m21 = sq.msg(4, 5, '21. signStep(step = k, comment)')
-    m22 = sq.msg(5, 6, '22. sign(CURRICULUM, step = k, роль по маршруту)')
-    m23 = sq.msg(6, 7, '23. saveSignature(step = k, sha256)')
-    m24 = sq.msg(7, 6, '24. ok', kind='return', dy=46)
-    m25 = sq.msg(6, 5, '25. signature(step = k)', kind='return', dy=46)
-    sq.act(6, m22, m25)
-    sq.act(7, m23, m24)
-    m26 = sq.msg(5, 4, '26. k = k + 1 → следующий подписант маршрута', kind='return', dy=60)
-    m27 = sq.msg(4, 1, '27. Протокол ФГОС предъявлен подписанту шага k', kind='return', dy=58)
-    y_loop_end = m27 + 34
-    sq.frags.append((*sq.frag(1, 7, 'loop',
-                              [(y_loop, 'для каждого шага k = 2…4: Эксперт АНОК → Проректор по УР → Ректор')],
-                              guard_in_tab=True, pad=28), y_loop, y_loop_end))
-    # ---- оператор 2 [выявлены нарушения] ----------------------------------
-    y_op2 = y_loop_end + 60
-    sq.y += 56                      # отступ от разделителя операторов
-    m28 = sq.msg(8, 5, '28. ValidationReport(passed = false, violations[])', kind='return', dy=52)
-    m29 = sq.msg(5, 4, '29. Список замечаний ФГОС; возврат на доработку', kind='return', dy=58)
-    y_alt_end = m29 + 22
-    sq.act(8, m14, m28)
+    m19 = sq.msg(8, 5, '19. ValidationReport(passed = true)', kind='return', dy=60)
+    m20 = sq.msg(5, 4, '20. renderReport(report) — протокол проверки', kind='return', dy=62)
+    m21 = sq.msg(4, 0, '21. Протокол проверки выдан заведующему', kind='return', dy=66)
+    # ---- фрагмент alt: оператор 2 [выявлены нарушения] --------------------
+    y_op2 = m21 + 104
+    sq.y = y_op2 + 40
+    m22 = sq.msg(8, 5, '22. ValidationReport(passed = false, violations[])', kind='return', dy=54)
+    m23 = sq.msg(5, 4, '23. Список замечаний ФГОС; возврат на доработку', kind='return', dy=58)
+    m24 = sq.msg(4, 0, '24. План возвращён на доработку', kind='return', dy=66)
+    y_alt_end = m24 + 26
+    sq.act(8, m15, m22)
     sq.frags.insert(0, (*sq.frag(1, 8, 'alt', [(y_alt, '[нарушений нет]'),
                                                (y_op2, '[выявлены нарушения]')]), y_alt, y_alt_end))
-    # --- 4. передача в Учёный совет и утверждение --------------------------
-    m30 = sq.msg(2, 4, '30. Согласование проекта для Учёного совета')
-    m31 = sq.msg(4, 2, '31. Проект принят к рассмотрению', kind='return', dy=58)
-    m32 = sq.msg(3, 4, '32. Утвердить: протокол УС № 8/26 от 25.06.2026')
-    m33 = sq.msg(4, 3, '33. Утверждение зарегистрировано', kind='return', dy=58)
-    m34 = sq.msg(4, 5, '34. approve(protocolNum = "8/26", protocolDate = "25.06.2026")')
-    m35 = sq.msg(5, 6, '35. finalize(protocol) → итоговый хэш')
-    m36 = sq.msg(6, 5, '36. finalHash = 8b41… (SHA-256)', kind='return', dy=48)
-    sq.act(6, m35, m36)
-    m37 = sq.msg(5, 4, '37. status = APPROVED, реквизиты протокола сохранены', kind='return')
-    m38 = sq.msg(4, 0, '38. Уведомление: учебный план утверждён', kind='return')
-    # Полоса активации = «объект выполняется». Между запросами страница и контроллер
-    # простаивают, поэтому одна сквозная полоса была бы неверна: дробим по запросам.
-    sq.act(4, m1, m5)       # 1–5   открытие формы (чтение)
-    sq.act(4, m6, m19)      # 6–19  сохранение + ЭЦП этапа 1 + протокол ФГОС
-    sq.act(4, m20, m27)     # 20–27 визирование (шаг k)
-    sq.act(4, m30, m31)     # 30–31 передача в Учёный совет
-    sq.act(4, m32, m33)     # 32–33 утверждение
-    sq.act(4, m34, m38)     # 34–38 approve + уведомление
+    # --- 4. визирование: шаги маршрута 2–4 ---------------------------------
+    # цикл стоит ПОСЛЕ alt: обе ветви закрыты возвратом пользователю (21 / 24),
+    # поэтому продолжение после фрагмента существует только в успешной ветви.
+    y_loop = y_alt_end + 44
+    sq.y = y_loop + 32
+    m25 = sq.msg(1, 4, '25. Подписант шага k открывает протокол ФГОС')
+    m26 = sq.msg(4, 5, '26. signStep(step = k, comment)')
+    m27 = sq.msg(5, 6, '27. sign(CURRICULUM, step = k, роль по маршруту)')
+    m28 = sq.msg(6, 7, '28. saveSignature(step = k, sha256)')
+    m29 = sq.msg(7, 6, '29. ok', kind='return', dy=46)
+    m30 = sq.msg(6, 5, '30. signature(step = k)', kind='return', dy=46)
+    sq.act(6, m27, m30)
+    sq.act(7, m28, m29)
+    m31 = sq.msg(5, 4, '31. k = k + 1 → следующий подписант маршрута', kind='return', dy=58)
+    m32 = sq.msg(4, 1, '32. Протокол ФГОС предъявлен подписанту шага k', kind='return', dy=66)
+    y_loop_end = m32 + 34
+    sq.frags.append((*sq.frag(1, 7, 'loop',
+                              [(y_loop, 'для каждого шага k = 2…4 (только при [нарушений нет]): '
+                                        'Эксперт АНОК → Проректор по УР → Ректор')],
+                              guard_in_tab=True, pad=28), y_loop, y_loop_end))
+    sq.y = y_loop_end + 30
+    # --- 5. передача в Учёный совет и утверждение --------------------------
+    m33 = sq.msg(2, 4, '33. Согласование проекта для Учёного совета')
+    m34 = sq.msg(4, 2, '34. Проект принят к рассмотрению', kind='return', dy=58)
+    m35 = sq.msg(3, 4, '35. Утвердить: протокол УС № 8/26 от 25.06.2026')
+    m36 = sq.msg(4, 3, '36. Утверждение зарегистрировано', kind='return', dy=58)
+    m37 = sq.msg(4, 5, '37. approve(protocolNum = "8/26", protocolDate = "25.06.2026")')
+    m38 = sq.msg(5, 6, '38. finalize(protocol) → итоговый хэш')
+    m39 = sq.msg(6, 5, '39. finalHash = 8b41… (SHA-256)', kind='return', dy=48)
+    sq.act(6, m38, m39)
+    m40 = sq.msg(5, 4, '40. status = APPROVED, реквизиты протокола сохранены', kind='return')
+    m41 = sq.msg(4, 0, '41. Уведомление: учебный план утверждён', kind='async')
+    # Полоса активации = «объект выполняется». Между запросами объект простаивает,
+    # поэтому одна сквозная полоса недопустима: дробим по запросам. Полоса ветви alt
+    # охватывает обе ветви — вызов открыт в любой из них.
+    sq.act(4, m1, m6)       # 1–6   открытие формы (чтение)
+    sq.act(4, m7, m24)      # 7–24  сохранение + ЭЦП этапа 1 + проверка ФГОС
+    sq.act(4, m25, m32)     # 25–32 визирование (шаг k)
+    sq.act(4, m33, m34)     # 33–34 передача в Учёный совет
+    sq.act(4, m35, m41)     # 35–41 утверждение и уведомление
     sq.act(5, m2, m5)
-    sq.act(5, m7, m19)
-    sq.act(5, m21, m26)
-    sq.act(5, m34, m37)
-    sq.act(6, m10, m13)
+    sq.act(5, m8, m23)
+    sq.act(5, m26, m31)
+    sq.act(5, m37, m40)
+    sq.act(6, m11, m14)
     return sq
 
 
