@@ -71,6 +71,7 @@
 |---|---|---|
 | Пояснительная записка | `reports/lab7/LR7_Explanatory_Note_Variant15.{md,docx,pdf}` | ✅ |
 | Презентация по шаблону (14 слайдов) | `reports/lab7/LR7_Presentation_Variant15.{pptx,pdf}` + `diagrams/lab7/tpl_slide_*.png`; диаграмма вариантов использования — `tpl_slide_04_usecase.png` | ✅ |
+| Диаграмма деятельности «Экспертиза и утверждение учебного плана» | `diagrams/lab7/activity_diagram.png`, слайд 8; проверка — `python3 tools_audit/check_activity.py` | ✅ |
 | Итоговый отчёт | `reports/lab7/LR7_Report_Variant15.{md,docx,pdf}` | ✅ |
 
 ---
