@@ -46,13 +46,16 @@ def on_border(pt, box, tol=2.5):
 def report(title, fn):
     fn()
     bad_seg, bad_lab, free_end = [], [], []
+    # контейнеры (узлы развёртывания, среды исполнения) могут содержать линии
+    containers = set(g.GEOM.get('containers', ()))
+    leaves = [b for b in g.GEOM['boxes'] if b[0] not in containers]
     for poly in g.GEOM['polys']:
         for p, q in zip(poly, poly[1:]):
-            for box in g.GEOM['boxes']:
+            for box in leaves:
                 if seg_hits_box(p, q, box):
                     bad_seg.append((p, q, box[0]))
     for lb in g.GEOM['labels']:
-        for box in g.GEOM['boxes']:
+        for box in leaves:
             if rect_in_box(lb, box):
                 bad_lab.append((lb[0], box[0]))
     for poly in g.GEOM['polys']:

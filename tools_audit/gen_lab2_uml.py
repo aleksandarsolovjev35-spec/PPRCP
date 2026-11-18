@@ -77,7 +77,7 @@ def draw_class(c, x, y, w, spec):
 
 
 GEOM = {'boxes': [], 'polys': [], 'labels': [], 'colors': [], 'ends': [],
-        'mults': [], 'roles': []}
+        'mults': [], 'roles': [], 'containers': []}
 
 
 def _poly(pts, color=LINE, width=1.3):
@@ -88,7 +88,7 @@ def _poly(pts, color=LINE, width=1.3):
 
 def _geom_reset():
     GEOM['boxes'], GEOM['polys'], GEOM['labels'], GEOM['colors'], GEOM['ends'] = [], [], [], [], []
-    GEOM['mults'], GEOM['roles'] = [], []
+    GEOM['mults'], GEOM['roles'], GEOM['containers'] = [], [], []
 
 
 def _lab(c, x, y, text, anchor='ls', size=F_MULT, fill='#111827', weight='normal'):
@@ -447,7 +447,7 @@ def assembly(c, x, y_top, y_bot, name=None, provider='top', size=11.0):
 
     y_top / y_bot — границы компонентов (верхняя и нижняя); provider — с какой
     стороны расположен компонент-поставщик интерфейса."""
-    r_ball, r_sock = 6.5, 10.0
+    r_ball, r_sock = 6.0, 12.0
     ym = (y_top + y_bot) / 2
     _poly([(x, y_top), (x, ym), (x, y_bot)], LINE, 1.4)
     if provider == 'top':          # поставщик сверху: гнездо потребителя снизу
@@ -456,14 +456,14 @@ def assembly(c, x, y_top, y_bot, name=None, provider='top', size=11.0):
         c.circle(x, ym, r_ball, fill='#ffffff', outline=LINE, width=1.3)
         c.line([(x, ym + r_sock), (x, y_bot)], fill=LINE, width=1.4)
         if name:
-            c.text(x + r_sock + 10, ym + 4, name, size, 'bold', '#1f2937')
+            c.text(x + r_sock + 12, ym + 4, name, size, 'bold', '#1f2937')
     else:                          # поставщик снизу: гнездо потребителя сверху
         c.line([(x, y_bot), (x, ym + r_ball)], fill=LINE, width=1.4)
         c.arc(x, ym, r_sock, 180, 360, fill=LINE, width=1.5)
         c.circle(x, ym, r_ball, fill='#ffffff', outline=LINE, width=1.3)
         c.line([(x, ym - r_sock), (x, y_top)], fill=LINE, width=1.4)
         if name:
-            c.text(x + r_sock + 10, ym + 4, name, size, 'bold', '#1f2937')
+            c.text(x + r_sock + 12, ym + 4, name, size, 'bold', '#1f2937')
     return ym
 
 
@@ -564,26 +564,23 @@ def component_diagram(lang=None):
 
     # ---------------- компоненты ----------------------------------------
     subs = T['subs']
-    ui_w, ui_h, ui_y = 400, 92, 162
-    component_slim(c, CX - ui_w / 2, ui_y, ui_w, ui_h, 'PortalUI', fill='#ffffff',
-                   sub=subs['PortalUI'])
+    ui_w, ui_h, ui_y = 400, 64, 162
+    component_slim(c, CX - ui_w / 2, ui_y, ui_w, ui_h, 'PortalUI', fill='#ffffff')
 
-    k_w, k_h, k_y = 1480, 92, 330
-    component_slim(c, CX - k_w / 2, k_y, k_w, k_h, 'HttpKernel', fill='#ffffff',
-                   sub=subs['HttpKernel'])
+    k_w, k_h, k_y = 1480, 64, 330
+    component_slim(c, CX - k_w / 2, k_y, k_w, k_h, 'HttpKernel', fill='#ffffff')
 
-    sv_w, sv_h, sv_y, sv_step = 264, 92, 498, 290
+    sv_w, sv_h, sv_y, sv_step = 264, 64, 498, 290
     sv_x = [CX - 2 * sv_step - sv_w / 2 + i * sv_step for i in range(5)]
     services = ['CurriculumService', 'FgosValidationEngine', 'WorkflowManager',
                 'MemoManager', 'AuditLogger']
     ifaces = ['ICurriculumService', 'IFgosValidation', 'IWorkflow',
               'IMemoProcessing', 'IAuditSink']
     for x, nm in zip(sv_x, services):
-        component_slim(c, x, sv_y, sv_w, sv_h, nm, fill='#ffffff', sub=subs[nm])
+        component_slim(c, x, sv_y, sv_w, sv_h, nm, fill='#ffffff')
 
     d_y = 666
-    component_slim(c, CX - k_w / 2, d_y, k_w, k_h, 'DataAccessLayer', fill='#ffffff',
-                   sub=subs['DataAccessLayer'])
+    component_slim(c, CX - k_w / 2, d_y, k_w, k_h, 'DataAccessLayer', fill='#ffffff')
 
     # ---------------- сборочные разъёмы ---------------------------------
     assembly(c, CX - 110, ui_y + ui_h, k_y, 'IPortalPages', provider='bottom', size=10.8)
@@ -646,6 +643,7 @@ def node3d(c, x, y, w, h, stereo, name, depth=16, sk=11, fill='#ffffff',
     """Узел UML 2.5 — трёхмерный блок (перспектива куба)."""
     c.rect(x, y, w, h, fill=fill, outline=LINE, width=1.5)
     GEOM['boxes'].append((name or 'node', x, y, x + w, y + h))
+    GEOM['containers'].append(name or 'node')      # контейнер: линии внутри законны
     c.poly([(x, y), (x + sk, y - depth), (x + w + sk, y - depth), (x + w, y)],
            fill=top, outline=LINE, width=1.3)
     c.poly([(x + w, y), (x + w + sk, y - depth), (x + w + sk, y + h - depth), (x + w, y + h)],
@@ -660,6 +658,7 @@ def env(c, x, y, w, h, stereo, name, sub=None):
     """Среда исполнения: узел «executionEnvironment» (вложенный в устройство)."""
     c.rect(x, y, w, h, fill='#ffffff', outline='#374151', width=1.3)
     GEOM['boxes'].append((name, x, y, x + w, y + h))
+    GEOM['containers'].append(name)
     c.text(x + 12, y + 18, '«%s»' % stereo, 9.2, 'normal', '#374151')
     c.text(x + 12, y + 34, name, 11.4, 'bold', '#111827')
     if sub:
@@ -699,6 +698,7 @@ DEP_TEXTS = {
         dbart='anok_portal', dbart_l=['schema.sql + seed.sql', '13 таблиц · utf8mb4'],
         p1=['«protocol»', 'HTTP/1.1 · TCP 8000'],
         p2=['«protocol»', 'SQL (PDO) · TCP 3306'],
+        manifest='«manifest»',
     ),
     'en': dict(
         title='Deployment Diagram — ANOK Center Portal',
@@ -716,37 +716,55 @@ DEP_TEXTS = {
         dbart='anok_portal', dbart_l=['schema.sql + seed.sql', '13 tables · utf8mb4'],
         p1=['«protocol»', 'HTTP/1.1 · TCP 8000'],
         p2=['«protocol»', 'SQL (PDO) · TCP 3306'],
+        manifest='«manifest»',
     ),
 }
+
+
+def _manifest(c, x0, y0, x1, y1, label):
+    """Манифестация UML 2.5: пунктирная стрелка от артефакта к компоненту."""
+    _poly([(x0, y0), (x1, y1)], '#374151', 1.2)
+    c.line([(x0, y0), (x1, y1)], fill='#374151', width=1.2, dash=(6, 4))
+    c.arrowhead((x1, y1), (x0, y0), 'open', '#374151', 9)
+    c.text(x1 + 10, (y0 + y1) / 2 + 4, label, 9.8, 'italic', '#111827')
 
 
 def deployment_diagram(lang=None):
     _geom_reset()
     lang = lang or COMP_LANG
     T = DEP_TEXTS[lang]
-    W, H = 1840, 660
+    W, H = 1900, 720
     c = Canvas(W, H, scale=2)
     title(c, T['title'])
 
     # ---------------- рабочая станция ------------------------------------
-    node3d(c, 60, 140, 420, 350, 'device', T['ws'])
-    env(c, 84, 230, 372, 230, 'executionEnvironment', T['browser'])
-    artifact(c, 104, 300, 332, 140, T['pages'], T['pages_l'])
+    # артефакт страниц манифестирует компонент PortalUI (пунктир «manifest»)
+    node3d(c, 60, 150, 420, 400, 'device', T['ws'])
+    env(c, 84, 200, 372, 180, 'executionEnvironment', T['browser'])
+    artifact(c, 104, 248, 332, 118, T['pages'], T['pages_l'])
+    component_slim(c, 104, 430, 332, 62, 'PortalUI', sub=None)
+    _manifest(c, 270, 366, 270, 430, T['manifest'])
 
     # ---------------- сервер приложений ----------------------------------
-    node3d(c, 700, 140, 500, 460, 'device', T['asrv'])
-    env(c, 724, 210, 452, 170, 'executionEnvironment', T['pyenv'])
-    artifact(c, 744, 268, 412, 96, T['pyart'], T['pyart_l'])
-    env(c, 724, 400, 452, 170, 'executionEnvironment', T['phpenv'])
-    artifact(c, 744, 458, 412, 96, T['phpart'], T['phpart_l'])
+    # оба артефакта (Python и PHP) реализуют один компонент HttpKernel
+    node3d(c, 700, 150, 540, 480, 'device', T['asrv'])
+    env(c, 724, 200, 492, 130, 'executionEnvironment', T['pyenv'])
+    artifact(c, 744, 240, 452, 76, T['pyart'], T['pyart_l'])
+    component_slim(c, 880, 360, 200, 56, 'HttpKernel', sub=None, name_size=11.8)
+    env(c, 724, 432, 492, 130, 'executionEnvironment', T['phpenv'])
+    artifact(c, 744, 472, 452, 76, T['phpart'], T['phpart_l'])
+    _manifest(c, 980, 316, 980, 360, T['manifest'])
+    _manifest(c, 980, 472, 980, 416, T['manifest'])
 
     # ---------------- сервер баз данных ----------------------------------
-    node3d(c, 1420, 140, 360, 320, 'device', T['dbsrv'])
-    env(c, 1444, 210, 312, 200, 'executionEnvironment', T['dbenv'])
-    artifact(c, 1464, 276, 272, 110, T['dbart'], T['dbart_l'])
+    # данные развёрнуты артефактом схемы; компонент не манифестируется —
+    # база хранит состояние, а не реализует поведение портала
+    node3d(c, 1420, 150, 380, 340, 'device', T['dbsrv'])
+    env(c, 1444, 200, 332, 220, 'executionEnvironment', T['dbenv'])
+    artifact(c, 1464, 250, 292, 130, T['dbart'], T['dbart_l'])
 
     # ---------------- пути связи -----------------------------------------
-    for x0, x1, lab in ((480, 700, T['p1']), (1200, 1420, T['p2'])):
+    for x0, x1, lab in ((480, 700, T['p1']), (1240, 1420, T['p2'])):
         _poly([(x0, 320), (x1, 320)], LINE, 1.6)
         c.line([(x0, 320), (x1, 320)], fill=LINE, width=1.6)
         xm = (x0 + x1) / 2
@@ -942,12 +960,15 @@ def _build_sequence(c, top, bottom):
     sq.act(3, m19 - 24, m22 - 8)
     sq.act(5, m20 - 24, m21 - 6)
     m23 = sq.msg(2, 1, '23. k = k + 1 → следующий шаг маршрута', kind='return', dy=60)
-    y_loop_end = m23 + 14
+    m23b = sq.msg(1, 6, '23.1 Протокол ФГОС предъявлен эксперту (шаг k)', kind='return', dy=58)
+    y_loop_end = m23b + 14
     sq.frags.append((*sq.frag(1, 8, 'loop', [(y_loop, 'для каждого шага k = 2…4: Эксперт АНОК → Проректор по УР → Ректор')],
                               guard_in_tab=True), y_loop, y_loop_end))
     # --- 5. утверждение ----------------------------------------------------
     m24 = sq.msg(7, 1, '24. Согласование проекта для Учёного совета')
+    m24b = sq.msg(1, 7, '24.1 Проект принят к рассмотрению', kind='return', dy=58)
     m25 = sq.msg(8, 1, '25. Утвердить: протокол УС № 8/26 от 25.06.2026')
+    m25b = sq.msg(1, 8, '25.1 Утверждение зарегистрировано', kind='return', dy=58)
     m26 = sq.msg(1, 2, '26. approve(protocolNum = "8/26", protocolDate = "25.06.2026")')
     m27 = sq.msg(2, 3, '27. finalize(protocol) → итоговый хэш')
     m28 = sq.msg(3, 2, '28. finalHash = 8b41… (SHA-256)', kind='return', dy=48)
