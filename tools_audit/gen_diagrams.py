@@ -1,6 +1,12 @@
 # -*- coding: utf-8 -*-
-"""Regenerates UML/architecture diagrams consistent with the actual code & data."""
+"""Regenerates architecture diagrams consistent with the actual code & data.
+
+UML-диаграммы ЛР № 2 (классы, компоненты, развёртывание, последовательность,
+реляционная схема) вынесены в отдельный модуль ``gen_lab2_uml.py`` и
+строятся по полной нотации UML 2.5.
+"""
 import os
+import sys
 from PIL import Image, ImageDraw, ImageFont
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 FD = '/usr/share/fonts/truetype/dejavu/'
@@ -8,6 +14,7 @@ def F(sz, bold=False):
     return ImageFont.truetype(FD + ('DejaVuSans-Bold.ttf' if bold else 'DejaVuSans.ttf'), sz)
 BG='#f8fafc'; INK='#0f172a'; MUT='#64748b'; BLUE='#2563eb'; LB='#dbeafe'; BORDER='#e2e8f0'
 OUT=f'{ROOT}/diagrams'
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 def tx(d,x,y,s,sz=13,b=False,c=INK): d.text((x,y),s,font=F(sz,b),fill=c)
 
@@ -61,159 +68,6 @@ def use_case():
             y+=92
         y+=18
     im.save(f'{OUT}/use_case_diagram.png')
-
-# ---------------------------------------------------------------- db schema
-def db_schema():
-    W,Hh=2100,1500; im=Image.new('RGB',(W,Hh),BG); d=ImageDraw.Draw(im)
-    tx(d,60,26,'Схема базы данных anok_portal (13 таблиц, 3NF, FOREIGN KEYS)',22,True)
-    tables={
-     'departments':(60,110,['PK id','name / short_name','type: RELEASING | IMPLEMENTING | EXPERT_ANOK | MANAGEMENT','phone / email']),
-     'roles':(60,330,['PK id','role_name / code','description']),
-     'standards_fgos':(60,520,['PK id','code (09.03.04…)','total_credits=240 / max_exams=5','min_practice=12 / min_gia=6']),
-     'users':(60,740,['PK id','FK role_id → roles','FK department_id → departments','username / full_name / email']),
-     'announcements':(60,960,['PK id','title / category','publish_date / is_pinned']),
-     'audit_logs':(60,1160,['PK id','event_time / user_name / user_role','action / entity_name / status / ip']),
-     'educational_programs':(760,110,['PK id','FK fgos_standard_id → standards_fgos','FK department_id → departments','code / title / level / study_form']),
-     'curriculums':(760,340,['PK id','FK program_id → educational_programs','academic_year / version / status','total_credits / protocol № 8/26']),
-     'competencies':(760,570,['PK id','FK program_id → educational_programs','code УК/ОПК/ПК / category','title / description']),
-     'service_notes':(760,800,['PK id','FK curriculum_id → curriculums','FK releasing/implementing → departments','note_num / reason / status']),
-     'service_note_items':(760,1040,['PK id','FK service_note_id → service_notes','FK discipline_id → curriculum_disciplines','change_type / old_val / new_val']),
-     'curriculum_disciplines':(1460,110,['PK id','FK curriculum_id → curriculums','FK implementing_department_id → departments','semester 1..8 / credits_ze / часы','control_form']),
-     'document_signatures':(1460,420,['PK id','doc_type / doc_id (полиморфная связь)','step_order 1..4 / role_title','signer_name / signed_at / sign_hash SHA-256']),
-    }
-    pos={}
-    for name,(x,y,lines) in tables.items():
-        h=46+len(lines)*26
-        colors={'departments':'#16a34a','roles':'#1d4ed8','standards_fgos':'#b45309','users':'#1d4ed8','announcements':'#b45309','audit_logs':'#334155',
-                'educational_programs':'#16a34a','curriculums':'#7c3aed','competencies':'#b45309','service_notes':'#b91c1c','service_note_items':'#b91c1c',
-                'curriculum_disciplines':'#7c3aed','document_signatures':'#334155'}
-        d.rectangle([x,y,x+620,y+34],fill=colors[name])
-        tx(d,x+12,y+8,f'table: {name}',14,True,'#fff')
-        d.rectangle([x,y+34,x+620,y+h],fill='#fff',outline=BORDER)
-        for i,ln in enumerate(lines):
-            col='#b91c1c' if ln.startswith('PK') else ('#1d4ed8' if ln.startswith('FK') else '#334155')
-            tx(d,x+12,y+44+i*26,ln,12,False,col)
-        pos[name]=(x,y,h)
-    links=[('educational_programs','standards_fgos'),('educational_programs','departments'),('curriculums','educational_programs'),
-      ('curriculum_disciplines','curriculums'),('curriculum_disciplines','departments'),('competencies','educational_programs'),
-      ('users','roles'),('users','departments'),('service_notes','curriculums'),('service_notes','departments'),
-      ('service_note_items','service_notes'),('service_note_items','curriculum_disciplines')]
-    for a,b in links:
-        x1,y1,h1=pos[a]; x2,y2,h2=pos[b]
-        c1=(x1+310,y1+h1); c2=(x2+310,y2)
-        if x1==x2:
-            d.line([(x1+620,y1+h1//2),(x2+620,y2+h2//2)],fill=BLUE,width=2)
-        else:
-            sx = x1+620 if x1<x2 else x1
-            ex = x2 if x2>x1 else x2+620
-            d.line([(sx,y1+h1//2),(ex,y2+h2//2)],fill=BLUE,width=2)
-    im.save(f'{OUT}/lab2/db_schema_diagram.png')
-
-# ---------------------------------------------------------------- class
-def class_diagram():
-    W,Hh=2100,1400; im=Image.new('RGB',(W,Hh),BG); d=ImageDraw.Draw(im)
-    tx(d,60,26,'Диаграмма классов — объектная модель предметной области',22,True)
-    cls={
-     'Curriculum':(820,90,['academicYear; version; status','totalCredits; protocolNum','protocolDate'],['validate(); approve()']),
-     'EducationalProgram':(120,90,['code; title; level','studyForm'],['']),
-     'StandardFGOS':(120,330,['totalCredits=240; maxExams=5','minPractice=12; minGia=6'],['check(plan)']),
-     'CurriculumDiscipline':(1520,90,['blockType; semesterNum','creditsZe; totalHours','lecture/lab/practice/selfHours','controlForm'],['hoursBalance()']),
-     'Department':(1520,420,['name; shortName','type; phone; email'],['']),
-     'DocumentSignature':(820,380,['stepOrder; roleTitle','signerName; status','signedAt; signHash SHA-256'],['sign(); verify()']),
-     'ServiceNote':(820,660,['noteNum; noteDate; reason','status; createdBy'],['apply()']),
-     'ServiceNoteItem':(1520,700,['changeType','oldVal; newVal'],['diff()']),
-     'User':(120,620,['username; fullName','email; positionTitle'],['']),
-     'Role':(120,880,['roleName; code','description'],['']),
-     'AuditLog':(820,940,['eventTime; userName','userRole; action','entityName; status; ip'],['log()']),
-    }
-    pos={}
-    for name,(x,y,attrs,meth) in cls.items():
-        h=40+len(attrs)*24+ (24+len(meth)*24 if meth[0] else 10)
-        d.rectangle([x,y,x+520,y+36],fill='#1e293b'); tx(d,x+14,y+8,name,15,True,'#fff')
-        d.rectangle([x,y+36,x+520,y+36+len(attrs)*24],fill='#fff',outline=BORDER)
-        for i,a in enumerate(attrs): tx(d,x+14,y+42+i*24,a,12)
-        y2=y+36+len(attrs)*24
-        if meth[0]:
-            d.rectangle([x,y2,x+520,y2+24+len(meth)*24],fill='#f8fafc',outline=BORDER)
-            for i,m in enumerate(meth): tx(d,x+14,y2+6+i*24,m,12,False,'#1d4ed8')
-        pos[name]=(x,y,h if h else 100)
-    rel=[('Curriculum','EducationalProgram','1 — *'),('Curriculum','CurriculumDiscipline','1 — *'),
-         ('EducationalProgram','StandardFGOS','* — 1'),('Curriculum','DocumentSignature','1 — *'),
-         ('Curriculum','ServiceNote','1 — *'),('ServiceNote','ServiceNoteItem','1 — *'),
-         ('CurriculumDiscipline','Department','* — 1'),('User','Role','* — 1'),('User','Department','* — 1')]
-    for a,b,lab in rel:
-        x1,y1,h1=pos[a]; x2,y2,h2=pos[b]
-        p1=(x1+260,y1+h1); p2=(x2+260,y2)
-        if abs(x1-x2)<10: d.line([(x1+520,y1+h1//2),(x2,y2+h2//2)],fill='#475569',width=2)
-        else: d.line([(x1+260,y1+h1),(x2+260,y2)],fill='#475569',width=2)
-        mx,my=( (p1[0]+p2[0])//2,(p1[1]+p2[1])//2 )
-        tx(d,mx+6,my-8,lab,11,True,'#475569')
-    im.save(f'{OUT}/lab2/class_diagram.png')
-
-# ---------------------------------------------------------------- component
-def component():
-    W,Hh=1900,1200; im=Image.new('RGB',(W,Hh),BG); d=ImageDraw.Draw(im)
-    tx(d,60,26,'Диаграмма компонентов — модульная структура портала (15 разделов + REST API)',20,True)
-    layers=[('КЛИЕНТСКИЙ УРОВЕНЬ (Web Browser): HTML5/CSS3, JS-модули Chart.js, FullCalendar, DataTables, SheetJS, jsPDF, CryptoJS, SweetAlert2/Toastify, Diff2Html (CDN)',110,'#dbeafe'),
-      ('HTTP KERNEL / ROUTER: dashboard · plans · plan · analytics · calendar · validate · signatures · memos · programs · competencies · standards · departments · announcements · audit · sitemap · /api/*',330,'#e0e7ff'),
-      ('SERVICE LAYER: CurriculumService · ValidationEngine (ФГОС 3++) · WorkflowManager (ЭЦП) · MemoManager (СЗ) · AuditLogger',560,'#ede9fe'),
-      ('DATA ACCESS LAYER: PDO MySQL / sqlite3, Prepared Statements → schema.sql + seed.sql (13 таблиц)',790,'#dcfce7')]
-    for txt,y,colr in layers:
-        d.rounded_rectangle([120,y,W-120,y+170],12,fill=colr,outline=BORDER)
-        lines=txt.split(': ',1)
-        tx(d,150,y+18,lines[0],15,True)
-        for i in range(0,len(lines[1]),110):
-            pass
-        body=lines[1]
-        import textwrap
-        for i,ln in enumerate(textwrap.wrap(body,110)):
-            tx(d,150,y+52+i*26,ln,13)
-    for y in (280,510,740):
-        d.line([(W//2,y),(W//2,y+50)],fill='#475569',width=2)
-        d.polygon([(W//2-8,y+42),(W//2+8,y+42),(W//2,y+54)],fill='#475569')
-    im.save(f'{OUT}/lab2/component_diagram.png')
-
-# ---------------------------------------------------------------- deployment
-def deployment():
-    W,Hh=1900,900; im=Image.new('RGB',(W,Hh),BG); d=ImageDraw.Draw(im)
-    tx(d,60,26,'Диаграмма развёртывания — физическая топология',20,True)
-    nodes=[('«Client Workstation»\nWeb-браузер (HTML5/CSS3/JS)\nмодули CDN',140,300,'#dbeafe'),
-           ('«App Server»\nPython 3 http.server / PHP 8\nportal/server.py · portal/index.php\nпорт TCP 8000',760,260,'#e0e7ff'),
-           ('«Database Server»\nMySQL 8 / MariaDB 10.6 (TCP 3306)\nили SQLite (portal.db)\n13 таблиц, FOREIGN KEYS',1380,300,'#dcfce7')]
-    for txt,x,y,colr in nodes:
-        d.rounded_rectangle([x,y,x+420,y+260],12,fill=colr,outline='#475569',width=2)
-        for i,ln in enumerate(txt.split('\n')): tx(d,x+24,y+30+i*44,ln,15,i==0)
-    d.line([(560,430),(760,390)],fill='#475569',width=3)
-    tx(d,600,360,'HTTP/HTTPS (TCP 8000)',13,True,'#475569')
-    d.line([(1180,390),(1380,430)],fill='#475569',width=3)
-    tx(d,1200,360,'SQL / PDO (TCP 3306)',13,True,'#475569')
-    im.save(f'{OUT}/lab2/deployment_diagram.png')
-
-# ---------------------------------------------------------------- sequence
-def sequence():
-    W,Hh=2000,1200; im=Image.new('RGB',(W,Hh),BG); d=ImageDraw.Draw(im)
-    tx(d,60,26,'Диаграмма последовательности — экспертиза, валидация и утверждение УП',20,True)
-    lanes=['Зав. выпускающей\nкафедрой','Портал\n(HTTP Router)','FGOS Validation\nEngine','Эксперт /\nНачальник АНОК','Проректор\nпо УР','Ректор\nуниверситета']
-    xs=[180+i*300 for i in range(6)]
-    for x,nm in zip(xs,lanes):
-        d.rounded_rectangle([x-110,90,x+110,170],8,fill='#1e293b')
-        for i,ln in enumerate(nm.split('\n')): tx(d,x-d.textlength(ln,font=F(13,True))/2,104+i*22,ln,13,True,'#fff')
-        d.line([(x,170),(x,Hh-60)],fill='#94a3b8',width=2)
-    msgs=[(0,1,'1. Инициирует проект УП, накладывает первичную ЭЦП'),
-          (1,2,'2. Запуск валидации: 240 з.е., 30/сем, ≤ 5 экз., ≥ 12 практ., ≥ 6 ГИА'),
-          (2,3,'3. Протокол проверки: замечаний нет'),
-          (3,1,'4. Положительная виза АНОК (SHA-256)'),
-          (1,4,'5. Согласование для Ученого совета'),
-          (4,5,'6. Передача на утверждение'),
-          (5,1,'7. Утверждение: протокол УС № 8/26 от 25.06.2026, финальный хэш')]
-    y=220
-    for a,b,txt in msgs:
-        d.line([(xs[a],y),(xs[b],y)],fill=BLUE,width=2)
-        dirr = 1 if b>a else -1
-        d.polygon([(xs[b]-dirr*12,y-6),(xs[b]-dirr*12,y+6),(xs[b],y)],fill=BLUE)
-        tx(d,min(xs[a],xs[b])+20,y-26,txt,12,True,'#334155')
-        y+=120
-    im.save(f'{OUT}/lab2/sequence_diagram.png')
 
 # ---------------------------------------------------------------- sitemap
 def sitemap():
@@ -325,5 +179,8 @@ def modules_arch():
     tx(d,1260,700,'SQL',12,True,'#475569')
     im.save(f'{OUT}/lab6/module_architecture_integration.png')
 
-use_case(); db_schema(); class_diagram(); component(); deployment(); sequence(); sitemap(); palette(); wireframe(); modules_arch()
+import gen_lab2_uml as lab2
+use_case(); sitemap(); palette(); wireframe(); modules_arch()
+lab2.class_diagram(); lab2.component_diagram(); lab2.deployment_diagram()
+lab2.sequence_diagram(); lab2.db_schema_diagram()
 print("diagrams done")

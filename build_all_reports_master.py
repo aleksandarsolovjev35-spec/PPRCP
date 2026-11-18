@@ -388,7 +388,7 @@ def table_start_height(lead_in, caption, table, avail_width, avail_height, min_b
     the bottom of a page while the table itself begins on the next one.
     """
     needed = 0.0
-    for flowable in lead_in + [caption]:
+    for flowable in lead_in + ([caption] if caption is not None else []):
         _width, height = flowable.wrap(avail_width, avail_height)
         needed += height + flowable.getSpaceBefore() + flowable.getSpaceAfter()
     table.wrap(avail_width, avail_height)
@@ -397,7 +397,13 @@ def table_start_height(lead_in, caption, table, avail_width, avail_height, min_b
     return min(needed, avail_height)
 
 
-def generate_docx(doc_type, title, discipline, variant, student, city_year, blocks, output_path):
+def _note_heading(text):
+    """Образец нумерует разделы без точки: «1 Назначение проекта». """
+    return re.sub(r'^(\d+)\.\s+', r'\1 ', text)
+
+
+def generate_docx(doc_type, title, discipline, variant, student, city_year, blocks, output_path,
+                  template='report', note_line=None, note_student=None):
     doc = docx.Document()
     
     # Page setup (A4: 210 x 297 mm, Margins: Top 20, Bottom 20, Left 30, Right 15 mm)
@@ -438,13 +444,32 @@ def generate_docx(doc_type, title, discipline, variant, student, city_year, bloc
         run.bold = bold
         return p
 
-    title_paragraph(doc_type.upper(), 16, bold=True, before=TITLE_PAGE_TOP_GAP, after=12)
-    title_paragraph(f"по дисциплине: «{discipline}»", 14, after=18)
-    title_paragraph(f"Тема: «{title}»", 14, bold=True, after=6)
-    title_paragraph(variant, 14, bold=True)
-    title_paragraph(f"Выполнил:\n{student}", 13, align=WD_ALIGN_PARAGRAPH.RIGHT,
-                    before=TITLE_PAGE_AUTHOR_GAP, line_spacing=1.15)
-    title_paragraph(city_year, 12, before=TITLE_PAGE_CITY_GAP)
+    if template == 'note':
+        # Титульный лист пояснительной записки — по образцу: шапка вуза,
+        # дисциплина, вид документа, тема, «Университет · вариант», автор, город.
+        # Отступы подобраны по образцу (посадка блоков по вертикали).
+        title_paragraph('Федеральное государственное автономное образовательное учреждение',
+                        12, bold=True, before=6)
+        title_paragraph('высшего образования «Национальный исследовательский университет', 12,
+                        bold=True)
+        title_paragraph('«Московский институт электронной техники»', 12, bold=True)
+        title_paragraph(discipline, 13, before=92)
+        title_paragraph(doc_type, 16, bold=True, before=56)
+        title_paragraph(title, 14, before=6)
+        title_paragraph(note_line or variant, 13, before=12)
+        title_paragraph('Выполнил студент П-41:', 13, align=WD_ALIGN_PARAGRAPH.RIGHT,
+                        before=96, line_spacing=1.15)
+        title_paragraph(note_student or student, 13, align=WD_ALIGN_PARAGRAPH.RIGHT,
+                        line_spacing=1.15)
+        title_paragraph(city_year, 12, before=238)
+    else:
+        title_paragraph(doc_type.upper(), 16, bold=True, before=TITLE_PAGE_TOP_GAP, after=12)
+        title_paragraph(f"по дисциплине: «{discipline}»", 14, after=18)
+        title_paragraph(f"Тема: «{title}»", 14, bold=True, after=6)
+        title_paragraph(variant, 14, bold=True)
+        title_paragraph(f"Выполнил:\n{student}", 13, align=WD_ALIGN_PARAGRAPH.RIGHT,
+                        before=TITLE_PAGE_AUTHOR_GAP, line_spacing=1.15)
+        title_paragraph(city_year, 12, before=TITLE_PAGE_CITY_GAP)
 
     # The body starts on a new page via "page break before" on its first
     # paragraph (see body_paragraph below) instead of a separate paragraph
@@ -509,15 +534,17 @@ def generate_docx(doc_type, title, discipline, variant, student, city_year, bloc
             p_h.paragraph_format.keep_with_next = True
             p_h.paragraph_format.keep_together = True
             p_h.paragraph_format.widow_control = True
-            if is_main_section and main_section_seen:
+            if is_main_section and main_section_seen and template != 'note':
                 p_h.paragraph_format.page_break_before = True
             if is_main_section:
                 main_section_seen = True
             clean_h = plain_inline_md(htext)
+            if template == 'note':
+                clean_h = _note_heading(clean_h)
             if level == 1:
                 p_h.paragraph_format.space_before = Pt(14)
                 p_h.paragraph_format.space_after = Pt(6)
-                r = p_h.add_run(clean_h.upper())
+                r = p_h.add_run(clean_h if template == 'note' else clean_h.upper())
                 r.font.name = 'Times New Roman'
                 r.font.size = Pt(16)
                 r.bold = True
@@ -593,7 +620,8 @@ def generate_docx(doc_type, title, discipline, variant, student, city_year, bloc
                 p_cap.paragraph_format.space_after = Pt(12)
                 p_cap.paragraph_format.keep_together = True
                 p_cap.paragraph_format.widow_control = True
-                cap_text = f"Рисунок {fig_count} — {plain_inline_md(caption)}" if caption else f"Рисунок {fig_count}"
+                dash = ' - ' if template == 'note' else ' — '
+                cap_text = f"Рисунок {fig_count}{dash}{plain_inline_md(caption)}" if caption else f"Рисунок {fig_count}"
                 r_cap = p_cap.add_run(cap_text)
                 r_cap.font.name = 'Times New Roman'
                 r_cap.font.size = Pt(12)
@@ -603,17 +631,18 @@ def generate_docx(doc_type, title, discipline, variant, student, city_year, bloc
             rows = b_content
             if rows:
                 tbl_count += 1
-                p_tcap = body_paragraph()
-                p_tcap.alignment = WD_ALIGN_PARAGRAPH.LEFT
-                p_tcap.paragraph_format.first_line_indent = Mm(12.5)
-                p_tcap.paragraph_format.space_before = Pt(8)
-                p_tcap.paragraph_format.space_after = Pt(4)
-                p_tcap.paragraph_format.keep_with_next = True
-                p_tcap.paragraph_format.keep_together = True
-                r_tcap = p_tcap.add_run(f"Таблица {tbl_count} — Спецификация данных")
-                r_tcap.font.name = 'Times New Roman'
-                r_tcap.font.size = Pt(12)
-                r_tcap.bold = True
+                if template != 'note':          # в записке таблица без подписи
+                    p_tcap = body_paragraph()
+                    p_tcap.alignment = WD_ALIGN_PARAGRAPH.LEFT
+                    p_tcap.paragraph_format.first_line_indent = Mm(12.5)
+                    p_tcap.paragraph_format.space_before = Pt(8)
+                    p_tcap.paragraph_format.space_after = Pt(4)
+                    p_tcap.paragraph_format.keep_with_next = True
+                    p_tcap.paragraph_format.keep_together = True
+                    r_tcap = p_tcap.add_run(f"Таблица {tbl_count} — Спецификация данных")
+                    r_tcap.font.name = 'Times New Roman'
+                    r_tcap.font.size = Pt(12)
+                    r_tcap.bold = True
                 
                 num_rows = len(rows)
                 num_cols = max(len(r) for r in rows)
@@ -664,7 +693,8 @@ def generate_docx(doc_type, title, discipline, variant, student, city_year, bloc
     doc.save(output_path)
     print(f"  [DOCX] Successfully saved: {output_path}")
 
-def generate_pdf(doc_type, title, discipline, variant, student, city_year, blocks, output_path):
+def generate_pdf(doc_type, title, discipline, variant, student, city_year, blocks, output_path,
+                 template='report', note_line=None, note_student=None):
     doc = SimpleDocTemplate(
         output_path,
         pagesize=A4,
@@ -812,15 +842,37 @@ def generate_pdf(doc_type, title, discipline, variant, student, city_year, block
     
     # Title Page
     student_fmt = xml_escape(student).replace('\n', '<br/>')
-    title_page = [
-        Spacer(1, TITLE_PAGE_TOP_GAP),
-        Paragraph(xml_escape(doc_type.upper()), title_main_style),
-        Paragraph(f"по дисциплине: «{xml_escape(discipline)}»<br/><br/><b>Тема: «{xml_escape(title)}»</b><br/><b>{xml_escape(variant)}</b>", title_sub_style),
-        Spacer(1, TITLE_PAGE_AUTHOR_GAP),
-        Paragraph(f"<b>Выполнил:</b><br/>{student_fmt}", title_meta_style),
-        Spacer(1, TITLE_PAGE_CITY_GAP),
-        Paragraph(xml_escape(city_year), title_bot_style),
-    ]
+    if template == 'note':
+        uni = ('Федеральное государственное автономное образовательное учреждение<br/>'
+               'высшего образования «Национальный исследовательский университет<br/>'
+               '«Московский институт электронной техники»')
+        title_page = [
+            Spacer(1, 4),
+            Paragraph(uni, title_top_style),
+            Spacer(1, 92),
+            Paragraph(xml_escape(discipline), title_sub_style),
+            Spacer(1, 56),
+            Paragraph(xml_escape(doc_type), title_main_style),
+            Spacer(1, 2),
+            Paragraph(xml_escape(title), title_sub_style),
+            Spacer(1, 2),
+            Paragraph(xml_escape(note_line or variant), title_sub_style),
+            Spacer(1, 92),
+            Paragraph('Выполнил студент П-41:<br/>%s'
+                      % xml_escape(note_student or student), title_meta_style),
+            Spacer(1, 232),
+            Paragraph(xml_escape(city_year), title_bot_style),
+        ]
+    else:
+        title_page = [
+            Spacer(1, TITLE_PAGE_TOP_GAP),
+            Paragraph(xml_escape(doc_type.upper()), title_main_style),
+            Paragraph(f"по дисциплине: «{xml_escape(discipline)}»<br/><br/><b>Тема: «{xml_escape(title)}»</b><br/><b>{xml_escape(variant)}</b>", title_sub_style),
+            Spacer(1, TITLE_PAGE_AUTHOR_GAP),
+            Paragraph(f"<b>Выполнил:</b><br/>{student_fmt}", title_meta_style),
+            Spacer(1, TITLE_PAGE_CITY_GAP),
+            Paragraph(xml_escape(city_year), title_bot_style),
+        ]
     fit_title_page(title_page, frame_width, frame_height)
     story.extend(title_page)
     story.append(PageBreak())
@@ -845,13 +897,15 @@ def generate_pdf(doc_type, title, discipline, variant, student, city_year, block
         if b_type == 'heading':
             level, htext = b_content
             is_main_section = is_report_section_heading(level, htext)
-            if is_main_section and main_section_seen:
+            if is_main_section and main_section_seen and template != 'note':
                 story.append(CondPageBreak(section_break_height))
             if is_main_section:
                 main_section_seen = True
             htext_fmt = reportlab_inline(htext)
+            if template == 'note':
+                htext_fmt = _note_heading(htext_fmt)
             if level == 1:
-                story.append(Paragraph(htext_fmt.upper(), h1_style))
+                story.append(Paragraph(htext_fmt if template == 'note' else htext_fmt.upper(), h1_style))
             elif level == 2:
                 story.append(Paragraph(htext_fmt, h2_style))
             else:
@@ -879,7 +933,9 @@ def generate_pdf(doc_type, title, discipline, variant, student, city_year, block
                 img_w = w * scale
                 img_h = h * scale
                 
-                cap_text = f"<i>Рисунок {fig_count} — {reportlab_inline(caption)}</i>" if caption else f"<i>Рисунок {fig_count}</i>"
+                dash = ' - ' if template == 'note' else ' — '
+                cap_text = (f"<i>Рисунок {fig_count}{dash}{reportlab_inline(caption)}</i>"
+                            if caption else f"<i>Рисунок {fig_count}</i>")
                 img_flowable = RLImage(img_path, width=img_w, height=img_h)
                 img_flowable.keepWithNext = True
                 cap_flowable = Paragraph(cap_text, caption_style)
@@ -898,6 +954,8 @@ def generate_pdf(doc_type, title, discipline, variant, student, city_year, block
                     firstLineIndent=1.25 * 28.3465
                 )
                 tcap = Paragraph(f"<b>Таблица {tbl_count} — Спецификация данных</b>", tcap_style)
+                if template == 'note':
+                    tcap = Spacer(1, 6)
                 
                 table_data = []
                 for r_idx, r in enumerate(rows):
@@ -1033,12 +1091,15 @@ DOCUMENTS = [
         "md": "reports/lab7/LR7_Explanatory_Note_Variant15.md",
         "docx": "reports/lab7/LR7_Explanatory_Note_Variant15.docx",
         "pdf": "reports/lab7/LR7_Explanatory_Note_Variant15.pdf",
-        "doc_type": "ПОЯСНИТЕЛЬНАЯ ЗАПИСКА К ВЫПУСКНОМУ ПРОЕКТУ",
-        "title": "Проектирование и разработка корпоративного веб-портала университета — Модуль Центра аккредитации и независимой оценки качества образования (АНОК)",
+        "doc_type": "Пояснительная записка",
+        "title": "Разработка портала Центра аккредитации и независимой оценки качества образования",
         "discipline": "Практикум по разработке корпоративного портала",
         "variant": "Вариант № 15: «Университет. Центр аккредитации и независимой оценки качества образования (АНОК)»",
         "student": "студент группы П-41\nСоловьёв А.С.",
-        "city_year": "Москва, 2026 г."
+        "city_year": "Москва 2026",
+        "template": "note",
+        "note_line": "Университет · Центр АНОК · вариант 15",
+        "note_student": "Соловьёв А.С."
     }
 ]
 
@@ -1058,7 +1119,10 @@ def main():
             student=doc_meta['student'],
             city_year=doc_meta['city_year'],
             blocks=blocks,
-            output_path=doc_meta['docx']
+            output_path=doc_meta['docx'],
+            template=doc_meta.get('template', 'report'),
+            note_line=doc_meta.get('note_line'),
+            note_student=doc_meta.get('note_student')
         )
         generate_pdf(
             doc_type=doc_meta['doc_type'],
@@ -1068,7 +1132,10 @@ def main():
             student=doc_meta['student'],
             city_year=doc_meta['city_year'],
             blocks=blocks,
-            output_path=doc_meta['pdf']
+            output_path=doc_meta['pdf'],
+            template=doc_meta.get('template', 'report'),
+            note_line=doc_meta.get('note_line'),
+            note_student=doc_meta.get('note_student')
         )
 
     print("\nAll 8 standardized DOCX and PDF documents regenerated successfully without supervisor block!")
