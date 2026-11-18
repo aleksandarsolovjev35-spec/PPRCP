@@ -77,7 +77,7 @@ def draw_class(c, x, y, w, spec):
 
 
 GEOM = {'boxes': [], 'polys': [], 'labels': [], 'colors': [], 'ends': [],
-        'mults': [], 'roles': [], 'containers': []}
+        'mults': [], 'roles': [], 'containers': [], 'bars': [], 'lifelines': []}
 
 
 def _poly(pts, color=LINE, width=1.3):
@@ -89,6 +89,7 @@ def _poly(pts, color=LINE, width=1.3):
 def _geom_reset():
     GEOM['boxes'], GEOM['polys'], GEOM['labels'], GEOM['colors'], GEOM['ends'] = [], [], [], [], []
     GEOM['mults'], GEOM['roles'], GEOM['containers'] = [], [], []
+    GEOM['bars'], GEOM['lifelines'] = [], []
 
 
 def _lab(c, x, y, text, anchor='ls', size=F_MULT, fill='#111827', weight='normal'):
@@ -263,7 +264,7 @@ def class_diagram(lang=None):
         if row < 2:
             row_y.append(row_y[row] + row_h[row] + 132)
     bottom = row_y[2] + row_h[2]
-    H = bottom + 210
+    H = bottom + 118
     c = Canvas(W, H, scale=2)
     title(c, 'Диаграмма классов — объектная модель портала Центра АНОК'
              if lang == 'ru' else 'Class Diagram — ANOK Center Portal domain model')
@@ -355,7 +356,7 @@ def class_diagram(lang=None):
           m1_at=(_l9[0] - 8, _l9[1] - 8, 'rs'))
     # 10. Department 1 —— 0..* ServiceNote (выпускающая кафедра)
     gx1 = COLS[3] + BW + 56
-    y_ch = bottom + 44
+    y_ch = bottom + 26
     d1 = L('Department', 0.72)
     s1 = B('ServiceNote', 0.58)
     assoc([d1, (gx1, d1[1]), (gx1, y_ch), (s1[0], y_ch), s1],
@@ -363,7 +364,7 @@ def class_diagram(lang=None):
           m0_at=(d1[0] - 8, d1[1] - 8, 'rs'))
     # 11. Department 1 —— 0..* ServiceNote (обеспечивающая кафедра)
     gx2 = COLS[3] + BW + 88
-    y_ch2 = y_ch + 34
+    y_ch2 = y_ch + 30
     d2 = L('Department', 0.92)
     s2 = B('ServiceNote', 0.2)
     assoc([d2, (gx2, d2[1]), (gx2, y_ch2), (s2[0], y_ch2), s2],
@@ -386,13 +387,18 @@ def class_diagram(lang=None):
     assoc([B('User', 0.42), T('Role', 0.42)], m0='0..*', r0='role', m1='1')
     # 15. User 0..* —— 0..1 Department
     assoc([T('User', 0.66), B('Department', 0.66)], m0='0..*', r0='department', m1='0..1')
-    # 16. Announcement 0..* —— 0..1 User (автор объявления; обход по правому полю)
-    _ya = bottom + 170
-    _yr = geo['Role'][1] - 90
-    _ann = B('Announcement', 0.35)
-    _usr = B('User', 0.92)
-    assoc([_ann, (_ann[0], _ya), (W - 60, _ya), (W - 60, _yr), (_usr[0], _yr), _usr],
-          m0='0..*', m1='0..1', r1='author')
+    # 16. Announcement 0..* —— 0..1 User (автор объявления).
+    # Канал: вправо от Announcement, вверх до межрядного коридора, по нему вправо
+    # и вверх по свободной щели между DocumentSignature и User — в левую грань User.
+    _ann = B('Announcement', 0.5)
+    _yb = bottom + 84                    # свободная полоса под нижним рядом
+    _x2 = W - 40                         # правое поле: места хватает и линиям, и подписям
+    _usr = R('User', 0.55)
+    assoc([_ann, (_ann[0], _yb), (_x2, _yb), (_x2, _usr[1]), _usr],
+          m0='0..*', m1='0..1', r1='author',
+          m0_at=(_ann[0] - 8, _ann[1] + 16, 'rs'),
+          m1_at=(_usr[0] + 10, _usr[1] - 8),
+          r1_at=(_usr[0] + 10, _usr[1] + 18))
 
     fname = 'class_diagram.png' if lang == COMP_LANG else 'class_diagram_%s.png' % lang
     c.save(os.path.join(OUT, fname))
@@ -791,6 +797,8 @@ class Seq:
         self.items = []     # ('msg', a, b, kind, y, text) | ('self', a, y, text)
         self.guards_draw = []   # отложенная отрисовка guard'ов (поверх линий жизни)
         self.acts = []      # (i, y0, y1, level)
+        self._bars = []     # прямоугольники полос активности
+        self._lab_rects = []
         self.frags = []     # (x0, x1, y0, y1, op, guards, guard_in_tab)
 
     # ---------------------------------------------------------------- разметка
@@ -859,10 +867,13 @@ class Seq:
         # 3. линии жизни (пунктир) — после рамок, до сообщений
         for x, hb in zip(self.xs, head_bottom):
             c.line([(x, hb), (x, self.bottom)], fill='#6b7280', width=1.1, dash=(6, 5))
+            GEOM['lifelines'].append(x)
         # 4. полосы активности — до сообщений
         for (i, y0, y1, level) in self.acts:
             x = self.xs[i] + level * 7
             c.rect(x - 7, y0, 14, max(20, y1 - y0), fill='#f4f6fb', outline='#374151', width=1.2)
+            self._bars.append((x, y0, y0 + max(20, y1 - y0)))
+            GEOM['bars'].append((x, y0, y0 + max(20, y1 - y0)))
         # 5. guard'ы фрагментов — поверх линий жизни и полос активности
         for gx, gy_text, guard in self.guards_draw:
             w = c.tw(guard, 10.0)
@@ -890,17 +901,59 @@ class Seq:
                 c.arrowhead((x + 6, y + 26), (x + 44, y + 26), 'filled', LINE, 9)
                 self._label(x + 60, x + 60, y + 16, text, align='left')
 
+    def _wrap(self, text, size, maxw):
+        """Разбивает подпись на строки так, чтобы она влезла в коридор между линиями."""
+        words, lines, cur = text.split(' '), [], ''
+        for wd in words:
+            probe = (cur + ' ' + wd).strip()
+            if cur and self.c.tw(probe, size) > maxw:
+                lines.append(cur)
+                cur = wd
+            else:
+                cur = probe
+        lines.append(cur)
+        return lines
+
     def _label(self, x1, x2, y, text, size=10.2, align='center'):
+        """Подпись ставится только в свободный коридор между соседними линиями
+        жизни: так она не ложится ни на полосу активности, ни на соседнюю линию."""
         c = self.c
-        w = c.tw(text, size)
-        if align == 'left':
-            lx = x1
-        else:
+        a, b = self._idx(x1), self._idx(x2)
+        gap = (self.xs[1] - self.xs[0]) - 24
+        lines = [text] if c.tw(text, size) <= gap else self._wrap(text, size, gap)[:3]
+        w = max(c.tw(l, size) for l in lines)
+        lh = 13.4
+        top = y - size - 4 - (len(lines) - 1) * lh
+        order = list(range(min(a, b), max(a, b))) or [a]
+        if a > b:
+            order.reverse()
+        lx = None
+        for i in order:
+            cand = self.xs[i] + (self.xs[i + 1] - self.xs[i]) / 2 - w / 2
+            if self._lab_free(cand, top, cand + w, y - 2):
+                lx = cand
+                break
+        if lx is None:
             lx = (x1 + x2) / 2 - w / 2
-            lx = max(min(lx, max(x1, x2) - w - 6), min(x1, x2) + 6)
-        c.d.rectangle([lx * c.s - 2, (y - size - 4) * c.s, (lx + w) * c.s + 2, (y - 2) * c.s],
-                      fill='#ffffff')
-        c.text(lx, y - 6, text, size, 'normal', '#111827')
+        for k, ln in enumerate(lines):
+            ly = top + (k + 1) * lh + 2
+            c.d.rectangle([(lx - 2) * c.s, (ly - size - 2) * c.s,
+                           (lx + c.tw(ln, size) + 2) * c.s, (ly + 2) * c.s], fill='#ffffff')
+            c.text(lx, ly, ln, size, 'normal', '#111827')
+        self._lab_rects.append((lx - 2, top, lx + w + 2, y - 2))
+        GEOM['labels'].append((text, lx - 2, top, lx + w + 2, y - 2))
+
+    def _idx(self, x):
+        return min(range(len(self.xs)), key=lambda i: abs(self.xs[i] - x))
+
+    def _lab_free(self, x0, y0, x1, y1):
+        for (bx, by0, by1) in self._bars:
+            if not (x1 < bx - 9 or x0 > bx + 9) and not (y1 < by0 or y0 > by1):
+                return False
+        for (lx0, ly0, lx1, ly1) in self._lab_rects:
+            if not (x1 < lx0 - 4 or x0 > lx1 + 4 or y1 < ly0 - 3 or y0 > ly1 + 3):
+                return False
+        return True
 
 
 def _build_sequence(c, top, bottom):
@@ -938,45 +991,49 @@ def _build_sequence(c, top, bottom):
     m11 = sq.msg(5, 4, '11. disciplines[51]', kind='return', dy=48)
     sq.act(5, m10 - 24, m11 - 6)
     m12 = sq.self_msg(4, '12. checkTotals() · checkSessionExams() · checkPractice()')
-    y_alt = m12 + 16
-    # оператор alt — результат экспертизы
-    m13 = sq.msg(4, 2, '13. ValidationReport(passed = true)', kind='return', dy=104)
-    m14 = sq.msg(2, 1, '14. renderReport(report) — протокол проверки', kind='return', dy=76)
-    y_op2 = m14 + 32
-    m15 = sq.msg(4, 2, '15. ValidationReport(passed = false, violations[])', kind='return', dy=50)
-    m16 = sq.msg(2, 1, '16. Список замечаний ФГОС; возврат на доработку', kind='return', dy=96)
-    y_alt_end = m16 + 14
-    sq.act(4, m9 - 24, y_alt_end - 8)
-    sq.frags.append((*sq.frag(1, 4, 'alt', [(y_alt, '[нарушений нет]'),
-                                            (y_op2, '[выявлены нарушения]')]), y_alt, y_alt_end))
-    # --- 4. маршрут визирования (шаги 2…4) --------------------------------
-    y_loop = m16 + 36
-    m17 = sq.msg(6, 1, '17. Визуальный контроль протокола проверки ФГОС (шаг k)')
-    m18 = sq.msg(1, 2, '18. signStep(step = k, comment)')
-    m19 = sq.msg(2, 3, '19. sign(CURRICULUM, step = k, роль по маршруту)')
-    m20 = sq.msg(3, 5, '20. saveSignature(step = k, sha256)')
-    m21 = sq.msg(5, 3, '21. ok', kind='return', dy=46)
-    m22 = sq.msg(3, 2, '22. signature(step = k)', kind='return', dy=46)
-    sq.act(3, m19 - 24, m22 - 8)
-    sq.act(5, m20 - 24, m21 - 6)
-    m23 = sq.msg(2, 1, '23. k = k + 1 → следующий шаг маршрута', kind='return', dy=60)
-    m23b = sq.msg(1, 6, '23.1 Протокол ФГОС предъявлен эксперту (шаг k)', kind='return', dy=58)
-    y_loop_end = m23b + 14
-    sq.frags.append((*sq.frag(1, 8, 'loop', [(y_loop, 'для каждого шага k = 2…4: Эксперт АНОК → Проректор по УР → Ректор')],
-                              guard_in_tab=True), y_loop, y_loop_end))
-    # --- 5. утверждение ----------------------------------------------------
-    m24 = sq.msg(7, 1, '24. Согласование проекта для Учёного совета')
-    m24b = sq.msg(1, 7, '24.1 Проект принят к рассмотрению', kind='return', dy=58)
-    m25 = sq.msg(8, 1, '25. Утвердить: протокол УС № 8/26 от 25.06.2026')
-    m25b = sq.msg(1, 8, '25.1 Утверждение зарегистрировано', kind='return', dy=58)
-    m26 = sq.msg(1, 2, '26. approve(protocolNum = "8/26", protocolDate = "25.06.2026")')
-    m27 = sq.msg(2, 3, '27. finalize(protocol) → итоговый хэш')
-    m28 = sq.msg(3, 2, '28. finalHash = 8b41… (SHA-256)', kind='return', dy=48)
-    sq.act(3, m27 - 24, m28 - 8)
-    m29 = sq.msg(2, 1, '29. status = APPROVED, реквизиты протокола сохранены', kind='return')
-    m30 = sq.msg(1, 0, '30. Уведомление: учебный план утверждён', kind='return')
-    sq.act(1, m1 - 24, m29 - 6)
-    sq.act(2, act_ctl, m29 - 6)
+    y_alt = m12 + 42          # рамка не должна ложиться на возврат self-сообщения
+    # ---- фрагмент alt: оператор 1 [нарушений нет] -------------------------
+    m13 = sq.msg(4, 2, '13. ValidationReport(passed = true)', kind='return', dy=64)
+    m14 = sq.msg(2, 1, '14. renderReport(report) — протокол проверки', kind='return', dy=70)
+    # ---- вложенный loop внутри успешной ветви -----------------------------
+    y_loop = m14 + 26
+    sq.y += 30                      # отступ под шапку вложенного фрагмента
+    m15 = sq.msg(6, 1, '15. Визуальный контроль протокола ФГОС (шаг k)')
+    m16 = sq.msg(1, 2, '16. signStep(step = k, comment)')
+    m17 = sq.msg(2, 3, '17. sign(CURRICULUM, step = k, роль по маршруту)')
+    m18 = sq.msg(3, 5, '18. saveSignature(step = k, sha256)')
+    m19 = sq.msg(5, 3, '19. ok', kind='return', dy=46)
+    m20 = sq.msg(3, 2, '20. signature(step = k)', kind='return', dy=46)
+    sq.act(3, m17 - 24, m20 - 8)
+    sq.act(5, m18 - 24, m19 - 6)
+    m21 = sq.msg(2, 1, '21. k = k + 1 → следующий шаг маршрута', kind='return', dy=60)
+    m22 = sq.msg(1, 6, '22. Протокол ФГОС предъявлен эксперту (шаг k)', kind='return', dy=58)
+    y_loop_end = m22 + 24
+    sq.frags.append((*sq.frag(1, 6, 'loop',
+                              [(y_loop, 'для каждого шага k = 2…4: Эксперт АНОК → Проректор по УР → Ректор')],
+                              guard_in_tab=True, pad=28), y_loop, y_loop_end))
+    # ---- оператор 2 [выявлены нарушения] ----------------------------------
+    y_op2 = y_loop_end + 34
+    sq.y += 28                      # отступ от разделителя операторов
+    m23 = sq.msg(4, 2, '23. ValidationReport(passed = false, violations[])', kind='return', dy=52)
+    m24 = sq.msg(2, 1, '24. Список замечаний ФГОС; возврат на доработку', kind='return', dy=58)
+    y_alt_end = m24 + 22
+    sq.act(4, m9 - 24, m23 + 8)
+    sq.frags.insert(0, (*sq.frag(1, 6, 'alt', [(y_alt, '[нарушений нет]'),
+                                               (y_op2, '[выявлены нарушения]')]), y_alt, y_alt_end))
+    # --- 4. утверждение ----------------------------------------------------
+    m25 = sq.msg(7, 1, '25. Согласование проекта для Учёного совета')
+    m26 = sq.msg(1, 7, '26. Проект принят к рассмотрению', kind='return', dy=58)
+    m27 = sq.msg(8, 1, '27. Утвердить: протокол УС № 8/26 от 25.06.2026')
+    m28 = sq.msg(1, 8, '28. Утверждение зарегистрировано', kind='return', dy=58)
+    m29 = sq.msg(1, 2, '29. approve(protocolNum = "8/26", protocolDate = "25.06.2026")')
+    m30 = sq.msg(2, 3, '30. finalize(protocol) → итоговый хэш')
+    m31 = sq.msg(3, 2, '31. finalHash = 8b41… (SHA-256)', kind='return', dy=48)
+    sq.act(3, m30 - 24, m31 - 8)
+    m32 = sq.msg(2, 1, '32. status = APPROVED, реквизиты протокола сохранены', kind='return')
+    m33 = sq.msg(1, 0, '33. Уведомление: учебный план утверждён', kind='return')
+    sq.act(1, m1 - 24, m32 - 6)
+    sq.act(2, act_ctl, m32 - 6)
     return sq
 
 
@@ -1003,25 +1060,27 @@ def er_table(c, x, y, w, name, cols, comment=None):
     hh = 30
     rh = 15.2
     h = hh + rh * len(cols) + 8
-    c.rect(x, y, w, h, fill='#ffffff', outline='#334155', width=1.3)
-    c.rect(x + 1, y + 1, w - 2, hh - 2, fill='#1e2a44', outline=None)
-    c.text(x + 10, y + 20, name, 11.8, 'bold', '#ffffff')
+    c.rect(x, y, w, h, fill='#ffffff', outline=LINE, width=1.3)
+    # шапка — та же светлая полоса, что и у классов (общий ч/б стиль набора)
+    c.rect(x + 1, y + 1, w - 2, hh - 2, fill='#ececec', outline=None)
+    c.text(x + 10, y + 20, name, 11.8, 'bold', INK)
     if comment:
-        c.text(x + w - 10, y + 20, comment, 9.2, 'normal', '#cbd5e1', anchor='rs')
-    c.line([(x, y + hh), (x + w, y + hh)], fill='#334155', width=1.1)
+        c.text(x + w - 10, y + 20, comment, 9.2, 'normal', '#374151', anchor='rs')
+    c.line([(x, y + hh), (x + w, y + hh)], fill=LINE, width=1.1)
     rows = {}
     yy = y + hh + 4.5
-    for (key, cname, ctype) in cols:
+    for i, (key, cname, ctype) in enumerate(cols):
         yy += rh
         rows[cname] = yy - 5
+        if i:                       # линия-разделитель, шапка уже отделена
+            c.line([(x + 1, yy - 11), (x + w - 1, yy - 11)], fill='#e6e8ec', width=0.8)
         if key:
-            col = {'PK': '#b91c1c', 'FK': '#1d4ed8', 'UQ': '#7c3aed'}[key]
-            c.text(x + 8, yy, key, 8.6, 'bold', col)
+            c.text(x + 8, yy, key, 8.6, 'bold', INK)
         notnull = '*' in ctype
         ctext = ctype.replace('*', '')
         c.text(x + 40, yy, cname, 10.0, 'bold' if notnull else 'normal', '#111827')
-        c.text(x + w - 8, yy, ctext, 9.4, 'bold' if notnull else 'normal',
-               '#334155' if notnull else '#6b7280', anchor='rs')
+        c.text(x + w - 10, yy, ctext, 9.4, 'bold' if notnull else 'normal',
+               '#374151' if notnull else '#4b5563', anchor='rs')
     return dict(x=x, y=y, w=w, h=h, rows=rows)
 
 
@@ -1153,9 +1212,9 @@ def db_schema_diagram():
         return geo[t]['y'] + geo[t]['h']
 
     def er(pts, child_end=None, parent_end=None, c_labs=(), p_labs=()):
-        _poly(pts, '#334155', 1.3)
+        _poly(pts, LINE, 1.3)
         GEOM['ends'].append((child_end, parent_end))
-        c.line(pts, fill='#334155', width=1.3)
+        c.line(pts, fill=LINE, width=1.3)
         if child_end:
             er_end(c, pts[0], pts[1], child_end, *c_labs)
         if parent_end:

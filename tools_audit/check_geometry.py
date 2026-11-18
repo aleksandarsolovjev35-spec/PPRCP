@@ -137,6 +137,23 @@ def report_crossings(title, fn):
     print('%s: пересечений связей между собой — %d' % (title, n))
 
 
+def report_sequence():
+    """Последовательность: подписи не должны ложиться на полосы активности
+    и на чужие линии жизни (это и есть «наезды» на блоки)."""
+    g.sequence_diagram()
+    labs, bars, xs = g.GEOM['labels'], g.GEOM['bars'], g.GEOM['lifelines']
+    on_bar = [t for (t, x0, y0, x1, y1) in labs for (bx, by0, by1) in bars
+              if x1 > bx - 7 and x0 < bx + 7 and y1 > by0 and y0 < by1]
+    on_life = [t for (t, x0, y0, x1, y1) in labs for x in xs if x0 < x < x1]
+    in_head = [t for (t, x0, y0, x1, y1) in labs for b in g.GEOM['boxes']
+               if x1 > b[1] and x0 < b[3] and y1 > b[2] and y0 < b[4]]
+    print('последовательность: подписей %d, на полосах активности — %d, '
+          'поверх линий жизни — %d, в заголовках — %d'
+          % (len(labs), len(on_bar), len(on_life), len(in_head)))
+    for t in (on_bar + on_life + in_head)[:6]:
+        print('   !', t[:70])
+
+
 if __name__ == '__main__':
     report('компоненты', lambda: g.component_diagram('ru'))
     report('развёртывание', lambda: g.deployment_diagram('ru'))
@@ -149,3 +166,5 @@ if __name__ == '__main__':
                       ('классы', lambda: g.class_diagram('ru')),
                       ('схема БД', g.db_schema_diagram)):
         report_crossings(title, fn)
+    print()
+    report_sequence()
