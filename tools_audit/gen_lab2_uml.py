@@ -784,6 +784,9 @@ def deployment_diagram(lang=None):
 # ======================================================================
 #  Диаграмма последовательности
 # ======================================================================
+SEQ = None          # последняя построенная диаграмма последовательности (для аудита)
+
+
 class Seq:
     """Диаграмма последовательности UML 2.5: два прохода (разметка → отрисовка)."""
 
@@ -931,7 +934,9 @@ class Seq:
         w = max(c.tw(l, size) for l in lines)
         lh = 13.4
         top = y - size - 4 - (len(lines) - 1) * lh
+        last = len(self.xs) - 2          # индекс последнего коридора
         order = list(range(min(a, b), max(a, b))) or [a]
+        order = [min(i, last) for i in order]
         if a > b:
             order.reverse()
         lx = None
@@ -974,83 +979,87 @@ class Seq:
 
 
 def _build_sequence(c, top, bottom):
+    # Порядок линий жизни выбран так, чтобы сообщение актёра шло к :PlanPage через
+    # линии жизни других АКТЁРОВ (у них нет полос активности), а внутренние вызовы
+    # шли между соседними объектами либо над уже закрытыми полосами. Поэтому ни одна
+    # линия связи не проходит сквозь блок активации.
     xs = [180 + i * 300 for i in range(9)]
     heads = [
-        ('actor', 'Заведующий\nкафедрой'),
-        ('obj', 'boundary', ':PlanPage'),
-        ('obj', 'control', ':PlanController'),
-        ('obj', 'control', ':WorkflowManager'),
-        ('obj', 'control', ':FgosValidationEngine'),
-        ('obj', 'entity', ':CurriculumRepository'),
-        ('actor', 'Эксперт\nАНОК'),
-        ('actor', 'Проректор\nпо УР'),
-        ('actor', 'Ректор'),
+        ('actor', 'Заведующий\nкафедрой'),   # 0
+        ('actor', 'Эксперт\nАНОК'),           # 1
+        ('actor', 'Проректор\nпо УР'),        # 2
+        ('actor', 'Ректор'),                  # 3
+        ('obj', 'boundary', ':PlanPage'),     # 4
+        ('obj', 'control', ':PlanController'),# 5
+        ('obj', 'control', ':WorkflowManager'),# 6
+        ('obj', 'entity', ':CurriculumRepository'),  # 7
+        ('obj', 'control', ':FgosValidationEngine'), # 8
     ]
     sq = Seq(c, xs, heads, top, bottom)
 
     # --- 1. инициация проекта плана ---------------------------------------
-    m1 = sq.msg(0, 1, '1. Открыть форму плана: GET ?page=plan&id=1')
-    m2 = sq.msg(1, 2, '2. Запрос данных плана: planId = 1')
-    m3 = sq.msg(2, 5, '3. save(curriculum) — INSERT / UPDATE')
-    m4 = sq.msg(5, 2, '4. curriculumId = 1', kind='return')
+    m1 = sq.msg(0, 4, '1. Открыть форму плана: GET ?page=plan&id=1')
+    m2 = sq.msg(4, 5, '2. Запрос данных плана: planId = 1')
+    m3 = sq.msg(5, 7, '3. save(curriculum) — INSERT / UPDATE')
+    m4 = sq.msg(7, 5, '4. curriculumId = 1', kind='return')
     act_ctl = m2 - 24
     # --- 2. первичная ЭЦП --------------------------------------------------
-    m5 = sq.msg(2, 3, '5. sign(CURRICULUM, step = 1, signer : User)')
-    m6 = sq.msg(3, 5, '6. saveSignature(step = 1, sha256)')
-    m7 = sq.msg(5, 3, '7. signatureId = 1', kind='return', dy=48)
-    m8 = sq.msg(3, 2, '8. signHash = 3f9c… (ЭЦП зафиксирована)', kind='return')
-    sq.act(3, m5 - 24, m8)
-    sq.act(5, m3 - 24, m4)
-    sq.act(5, m6 - 24, m7)
+    m5 = sq.msg(5, 6, '5. sign(CURRICULUM, step = 1, signer : User)')
+    m6 = sq.msg(6, 7, '6. saveSignature(step = 1, sha256)')
+    m7 = sq.msg(7, 6, '7. signatureId = 1', kind='return', dy=48)
+    m8 = sq.msg(6, 5, '8. signHash = 3f9c… (ЭЦП зафиксирована)', kind='return')
+    sq.act(6, m5 - 24, m8)
+    sq.act(7, m3 - 24, m4)
+    sq.act(7, m6 - 24, m7)
     # --- 3. автоматическая валидация ФГОС ----------------------------------
-    m9 = sq.msg(2, 4, '9. validate(curriculumId = 1)')
-    m10 = sq.msg(4, 5, '10. findDisciplines(curriculumId = 1)')
-    m11 = sq.msg(5, 4, '11. disciplines[51]', kind='return', dy=48)
-    sq.act(5, m10 - 24, m11)
-    m12 = sq.self_msg(4, '12. checkTotals() · checkSessionExams() · checkPractice()')
+    m9 = sq.msg(5, 8, '9. validate(curriculumId = 1)')
+    m10 = sq.msg(8, 7, '10. findDisciplines(curriculumId = 1)')
+    m11 = sq.msg(7, 8, '11. disciplines[51]', kind='return', dy=48)
+    sq.act(7, m10 - 24, m11)
+    m12 = sq.self_msg(8, '12. checkTotals() · checkSessionExams() · checkPractice()')
     y_alt = m12 + 42          # рамка не должна ложиться на возврат self-сообщения
     # ---- фрагмент alt: оператор 1 [нарушений нет] -------------------------
-    m13 = sq.msg(4, 2, '13. ValidationReport(passed = true)', kind='return', dy=64)
-    m14 = sq.msg(2, 1, '14. renderReport(report) — протокол проверки', kind='return', dy=70)
+    m13 = sq.msg(8, 5, '13. ValidationReport(passed = true)', kind='return', dy=64)
+    m14 = sq.msg(5, 4, '14. renderReport(report) — протокол проверки', kind='return', dy=70)
     # ---- вложенный loop внутри успешной ветви -----------------------------
     y_loop = m14 + 26
     sq.y += 30                      # отступ под шапку вложенного фрагмента
-    m15 = sq.msg(6, 1, '15. Визуальный контроль протокола ФГОС (шаг k)')
-    m16 = sq.msg(1, 2, '16. signStep(step = k, comment)')
-    m17 = sq.msg(2, 3, '17. sign(CURRICULUM, step = k, роль по маршруту)')
-    m18 = sq.msg(3, 5, '18. saveSignature(step = k, sha256)')
-    m19 = sq.msg(5, 3, '19. ok', kind='return', dy=46)
-    m20 = sq.msg(3, 2, '20. signature(step = k)', kind='return', dy=46)
-    sq.act(3, m17 - 24, m20)
-    sq.act(5, m18 - 24, m19)
-    m21 = sq.msg(2, 1, '21. k = k + 1 → следующий шаг маршрута', kind='return', dy=60)
-    m22 = sq.msg(1, 6, '22. Протокол ФГОС предъявлен эксперту (шаг k)', kind='return', dy=58)
+    m15 = sq.msg(1, 4, '15. Визуальный контроль протокола ФГОС (шаг k)')
+    m16 = sq.msg(4, 5, '16. signStep(step = k, comment)')
+    m17 = sq.msg(5, 6, '17. sign(CURRICULUM, step = k, роль по маршруту)')
+    m18 = sq.msg(6, 7, '18. saveSignature(step = k, sha256)')
+    m19 = sq.msg(7, 6, '19. ok', kind='return', dy=46)
+    m20 = sq.msg(6, 5, '20. signature(step = k)', kind='return', dy=46)
+    sq.act(6, m17 - 24, m20)
+    sq.act(7, m18 - 24, m19)
+    m21 = sq.msg(5, 4, '21. k = k + 1 → следующий шаг маршрута', kind='return', dy=60)
+    m22 = sq.msg(4, 1, '22. Протокол ФГОС предъявлен эксперту (шаг k)', kind='return', dy=58)
     y_loop_end = m22 + 24
-    sq.frags.append((*sq.frag(1, 6, 'loop',
+    sq.frags.append((*sq.frag(1, 7, 'loop',
                               [(y_loop, 'для каждого шага k = 2…4: Эксперт АНОК → Проректор по УР → Ректор')],
                               guard_in_tab=True, pad=28), y_loop, y_loop_end))
     # ---- оператор 2 [выявлены нарушения] ----------------------------------
     y_op2 = y_loop_end + 60
     sq.y += 56                      # отступ от разделителя операторов
-    m23 = sq.msg(4, 2, '23. ValidationReport(passed = false, violations[])', kind='return', dy=52)
-    m24 = sq.msg(2, 1, '24. Список замечаний ФГОС; возврат на доработку', kind='return', dy=58)
+    m23 = sq.msg(8, 5, '23. ValidationReport(passed = false, violations[])', kind='return', dy=52)
+    m24 = sq.msg(5, 4, '24. Список замечаний ФГОС; возврат на доработку', kind='return', dy=58)
     y_alt_end = m24 + 22
-    sq.act(4, m9 - 24, m23)
-    sq.frags.insert(0, (*sq.frag(1, 6, 'alt', [(y_alt, '[нарушений нет]'),
+    sq.act(8, m9 - 24, m23)
+    sq.frags.insert(0, (*sq.frag(1, 8, 'alt', [(y_alt, '[нарушений нет]'),
                                                (y_op2, '[выявлены нарушения]')]), y_alt, y_alt_end))
     # --- 4. утверждение ----------------------------------------------------
-    m25 = sq.msg(7, 1, '25. Согласование проекта для Учёного совета')
-    m26 = sq.msg(1, 7, '26. Проект принят к рассмотрению', kind='return', dy=58)
-    m27 = sq.msg(8, 1, '27. Утвердить: протокол УС № 8/26 от 25.06.2026')
-    m28 = sq.msg(1, 8, '28. Утверждение зарегистрировано', kind='return', dy=58)
-    m29 = sq.msg(1, 2, '29. approve(protocolNum = "8/26", protocolDate = "25.06.2026")')
-    m30 = sq.msg(2, 3, '30. finalize(protocol) → итоговый хэш')
-    m31 = sq.msg(3, 2, '31. finalHash = 8b41… (SHA-256)', kind='return', dy=48)
-    sq.act(3, m30 - 24, m31)
-    m32 = sq.msg(2, 1, '32. status = APPROVED, реквизиты протокола сохранены', kind='return')
-    m33 = sq.msg(1, 0, '33. Уведомление: учебный план утверждён', kind='return')
-    sq.act(1, m1 - 24, m33)
-    sq.act(2, act_ctl, m32)
+    m25 = sq.msg(2, 4, '25. Согласование проекта для Учёного совета')
+    m26 = sq.msg(4, 2, '26. Проект принят к рассмотрению', kind='return', dy=58)
+    m27 = sq.msg(3, 4, '27. Утвердить: протокол УС № 8/26 от 25.06.2026')
+    m28 = sq.msg(4, 3, '28. Утверждение зарегистрировано', kind='return', dy=58)
+    m29 = sq.msg(4, 5, '29. approve(protocolNum = "8/26", protocolDate = "25.06.2026")')
+    m30 = sq.msg(5, 6, '30. finalize(protocol) → итоговый хэш')
+    m31 = sq.msg(6, 5, '31. finalHash = 8b41… (SHA-256)', kind='return', dy=48)
+    sq.act(6, m30 - 24, m31)
+    m32 = sq.msg(5, 4, '32. status = APPROVED, реквизиты протокола сохранены', kind='return')
+    m33 = sq.msg(4, 0, '33. Уведомление: учебный план утверждён', kind='return')
+    sq.act(4, m1 - 24, m33)
+    sq.act(5, act_ctl, m32)
     return sq
 
 
@@ -1064,6 +1073,8 @@ def sequence_diagram():
     c = Canvas(W, H, scale=2)
     title(c, 'Диаграмма последовательности — экспертиза, валидация ФГОС и утверждение учебного плана')
     sq = _build_sequence(c, top, H - 36)
+    global SEQ
+    SEQ = sq
     sq.render()
 
     c.save(os.path.join(OUT, 'sequence_diagram.png'))

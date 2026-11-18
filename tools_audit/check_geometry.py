@@ -147,9 +147,23 @@ def report_sequence():
     on_life = [t for (t, x0, y0, x1, y1) in labs for x in xs if x0 < x < x1]
     in_head = [t for (t, x0, y0, x1, y1) in labs for b in g.GEOM['boxes']
                if x1 > b[1] and x0 < b[3] and y1 > b[2] and y0 < b[4]]
+    sq = g.SEQ
+    thru = []
+    for it in sq.items:
+        if it[0] != 'msg':
+            continue
+        _, a, b, _k, y, text = it
+        la, ra = sq._bar_edge(a, y)
+        lb, rb = sq._bar_edge(b, y)
+        x1, x2 = (ra, lb) if sq.xs[b] > sq.xs[a] else (la, rb)
+        lo, hi = min(x1, x2), max(x1, x2)
+        for (bi, by0, by1, level) in sq.acts:
+            bx = sq.xs[bi] + level * 7
+            if by0 <= y <= by0 + max(20, by1 - by0) and lo < bx - 7 and hi > bx + 7:
+                thru.append(text[:40])
     print('последовательность: подписей %d, на полосах активности — %d, '
-          'поверх линий жизни — %d, в заголовках — %d'
-          % (len(labs), len(on_bar), len(on_life), len(in_head)))
+          'поверх линий жизни — %d, в заголовках — %d, сквозь полосы активности — %d'
+          % (len(labs), len(on_bar), len(on_life), len(in_head), len(thru)))
     for t in (on_bar + on_life + in_head)[:6]:
         print('   !', t[:70])
 
