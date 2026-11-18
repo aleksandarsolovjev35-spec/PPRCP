@@ -884,7 +884,9 @@ class Seq:
         for it in self.items:
             if it[0] == 'msg':
                 _, a, b, kind, y, text = it
-                x1, x2 = self.xs[a], self.xs[b]
+                la, ra = self._bar_edge(a, y)      # рёбра полос активности
+                lb, rb = self._bar_edge(b, y)
+                x1, x2 = (ra, lb) if self.xs[b] > self.xs[a] else (la, rb)
                 _poly([(x1, y), (x2, y)], '#334155', 1.3)
                 if kind == 'sync':
                     c.line([(x1, y), (x2, y)], fill=LINE, width=1.4)
@@ -895,7 +897,7 @@ class Seq:
                 self._label(x1, x2, y, text)
             else:
                 _, a, y, text = it
-                x = self.xs[a]
+                x = self._bar_edge(a, y)[1]
                 c.line([(x, y), (x + 54, y), (x + 54, y + 26), (x + 8, y + 26)],
                        fill=LINE, width=1.4)
                 c.arrowhead((x + 6, y + 26), (x + 44, y + 26), 'filled', LINE, 9)
@@ -942,6 +944,16 @@ class Seq:
             c.text(lx, ly, ln, size, 'normal', '#111827')
         self._lab_rects.append((lx - 2, top, lx + w + 2, y - 2))
         GEOM['labels'].append((text, lx - 2, top, lx + w + 2, y - 2))
+
+    def _bar_edge(self, i, y):
+        """Границы полосы активности (если она активна в точке y), иначе — линия жизни.
+        Сообщение обязано начинаться/заканчиваться на ребре полосы, а не в её середине."""
+        for (bi, y0, y1, level) in self.acts:
+            if bi == i and y0 <= y <= y0 + max(20, y1 - y0):
+                x = self.xs[i] + level * 7
+                return (x - 7, x + 7)
+        x = self.xs[i]
+        return (x, x)
 
     def _idx(self, x):
         return min(range(len(self.xs)), key=lambda i: abs(self.xs[i] - x))
