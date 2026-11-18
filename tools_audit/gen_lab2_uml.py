@@ -22,6 +22,10 @@ from uml_kit import (Canvas, INK, MUTED, LINE, BLUE, HEAD_FILL, ACCENT,  # noqa:
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT = os.path.join(ROOT, 'diagrams', 'lab2')
+
+# Рамка фрагмента — аннотация, а не связь: серый длинный пунктир.
+# Возвраты сообщений — чёрный короткий пунктир. Так их не спутать.
+FRAME_LINE = '#9aa3b2'
 F_NAME, F_STEREO, F_MEMBER, F_MULT = 13, 9.5, 10.2, 10.0
 LH = 15.4          # межстрочный интервал в секциях атрибутов/операций
 HDR = 30.0         # высота секции имени
@@ -851,8 +855,8 @@ class Seq:
                 head_bottom.append(self.top + 38)
         # 2. контуры рамок фрагментов — под линиями жизни и полосами активности
         for (x0, x1, op, guards, in_tab, y0, y1) in self.frags:
-            c.rect(x0, y0, x1 - x0, y1 - y0, fill=None, outline='#374151', width=1.3,
-                   dash=(7, 5))
+            c.rect(x0, y0, x1 - x0, y1 - y0, fill=None, outline=FRAME_LINE, width=1.1,
+                   dash=(11, 7))
         # 3. линии жизни (пунктир) — после рамок, до сообщений
         for x, hb in zip(self.xs, head_bottom):
             c.line([(x, hb), (x, self.bottom)], fill='#6b7280', width=1.1, dash=(6, 5))
@@ -871,14 +875,15 @@ class Seq:
                 tab_w = max(58, 66 + c.tw(guards[0][1], 10.0) + 10)
             c.poly([(x0, y0), (x0 + tab_w, y0), (x0 + tab_w, y0 + 21),
                     (x0 + tab_w - 12, y0 + 31), (x0, y0 + 31)],
-                   fill='#ffffff', outline='#374151', width=1.3)
+                   fill='#ffffff', outline=FRAME_LINE, width=1.2)
             c.text(x0 + 9, y0 + 20, op, 10.4, 'bold', '#111827')
             for k, (gy, guard) in enumerate(guards):
                 if k == 0:
                     gx, gy_text = x0 + (66 if in_tab else 70), y0 + 20
                 else:
                     # условие ветви alt ставится ВНУТРИ операнда — под разделителем
-                    c.line([(x0 + 1, gy), (x1 - 1, gy)], fill='#374151', width=1.1, dash=(7, 5))
+                    c.line([(x0 + 1, gy), (x1 - 1, gy)], fill=FRAME_LINE, width=1.1,
+                           dash=(11, 7))
                     gx, gy_text = x0 + 12, gy + 19
                 self.guards_draw.append((gx, gy_text, guard))
 
@@ -900,7 +905,7 @@ class Seq:
                     c.line([(x1, y), (x2, y)], fill=LINE, width=1.4)
                     c.arrowhead((x2, y), (x1, y), 'filled', LINE, 10)
                 else:
-                    c.line([(x1, y), (x2, y)], fill=LINE, width=1.2, dash=(6, 4))
+                    c.line([(x1, y), (x2, y)], fill=LINE, width=1.5, dash=(5, 4))
                     c.arrowhead((x2, y), (x1, y), 'open', LINE, 10)
                 self._label(x1, x2, y, text)
             else:
