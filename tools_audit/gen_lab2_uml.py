@@ -861,8 +861,9 @@ class Seq:
                 if k == 0:
                     gx, gy_text = x0 + (66 if in_tab else 70), y0 + 20
                 else:
+                    # условие ветви alt ставится ВНУТРИ операнда — под разделителем
                     c.line([(x0 + 1, gy), (x1 - 1, gy)], fill='#374151', width=1.1, dash=(7, 5))
-                    gx, gy_text = x0 + 10, gy - 7
+                    gx, gy_text = x0 + 12, gy + 19
                 self.guards_draw.append((gx, gy_text, guard))
         # 3. линии жизни (пунктир) — после рамок, до сообщений
         for x, hb in zip(self.xs, head_bottom):
@@ -921,7 +922,7 @@ class Seq:
         жизни: так она не ложится ни на полосу активности, ни на соседнюю линию."""
         c = self.c
         a, b = self._idx(x1), self._idx(x2)
-        gap = (self.xs[1] - self.xs[0]) - 24
+        gap = (self.xs[1] - self.xs[0]) - 56
         lines = [text] if c.tw(text, size) <= gap else self._wrap(text, size, gap)[:3]
         w = max(c.tw(l, size) for l in lines)
         lh = 13.4
@@ -1025,8 +1026,8 @@ def _build_sequence(c, top, bottom):
                               [(y_loop, 'для каждого шага k = 2…4: Эксперт АНОК → Проректор по УР → Ректор')],
                               guard_in_tab=True, pad=28), y_loop, y_loop_end))
     # ---- оператор 2 [выявлены нарушения] ----------------------------------
-    y_op2 = y_loop_end + 34
-    sq.y += 28                      # отступ от разделителя операторов
+    y_op2 = y_loop_end + 60
+    sq.y += 56                      # отступ от разделителя операторов
     m23 = sq.msg(4, 2, '23. ValidationReport(passed = false, violations[])', kind='return', dy=52)
     m24 = sq.msg(2, 1, '24. Список замечаний ФГОС; возврат на доработку', kind='return', dy=58)
     y_alt_end = m24 + 22
