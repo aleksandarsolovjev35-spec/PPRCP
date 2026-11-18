@@ -994,14 +994,14 @@ def _build_sequence(c, top, bottom):
     m6 = sq.msg(3, 5, '6. saveSignature(step = 1, sha256)')
     m7 = sq.msg(5, 3, '7. signatureId = 1', kind='return', dy=48)
     m8 = sq.msg(3, 2, '8. signHash = 3f9c… (ЭЦП зафиксирована)', kind='return')
-    sq.act(3, m5 - 24, m8 - 8)
-    sq.act(5, m3 - 24, m4 - 6)
-    sq.act(5, m6 - 24, m7 - 6)
+    sq.act(3, m5 - 24, m8)
+    sq.act(5, m3 - 24, m4)
+    sq.act(5, m6 - 24, m7)
     # --- 3. автоматическая валидация ФГОС ----------------------------------
     m9 = sq.msg(2, 4, '9. validate(curriculumId = 1)')
     m10 = sq.msg(4, 5, '10. findDisciplines(curriculumId = 1)')
     m11 = sq.msg(5, 4, '11. disciplines[51]', kind='return', dy=48)
-    sq.act(5, m10 - 24, m11 - 6)
+    sq.act(5, m10 - 24, m11)
     m12 = sq.self_msg(4, '12. checkTotals() · checkSessionExams() · checkPractice()')
     y_alt = m12 + 42          # рамка не должна ложиться на возврат self-сообщения
     # ---- фрагмент alt: оператор 1 [нарушений нет] -------------------------
@@ -1016,8 +1016,8 @@ def _build_sequence(c, top, bottom):
     m18 = sq.msg(3, 5, '18. saveSignature(step = k, sha256)')
     m19 = sq.msg(5, 3, '19. ok', kind='return', dy=46)
     m20 = sq.msg(3, 2, '20. signature(step = k)', kind='return', dy=46)
-    sq.act(3, m17 - 24, m20 - 8)
-    sq.act(5, m18 - 24, m19 - 6)
+    sq.act(3, m17 - 24, m20)
+    sq.act(5, m18 - 24, m19)
     m21 = sq.msg(2, 1, '21. k = k + 1 → следующий шаг маршрута', kind='return', dy=60)
     m22 = sq.msg(1, 6, '22. Протокол ФГОС предъявлен эксперту (шаг k)', kind='return', dy=58)
     y_loop_end = m22 + 24
@@ -1030,7 +1030,7 @@ def _build_sequence(c, top, bottom):
     m23 = sq.msg(4, 2, '23. ValidationReport(passed = false, violations[])', kind='return', dy=52)
     m24 = sq.msg(2, 1, '24. Список замечаний ФГОС; возврат на доработку', kind='return', dy=58)
     y_alt_end = m24 + 22
-    sq.act(4, m9 - 24, m23 + 8)
+    sq.act(4, m9 - 24, m23)
     sq.frags.insert(0, (*sq.frag(1, 6, 'alt', [(y_alt, '[нарушений нет]'),
                                                (y_op2, '[выявлены нарушения]')]), y_alt, y_alt_end))
     # --- 4. утверждение ----------------------------------------------------
@@ -1041,11 +1041,11 @@ def _build_sequence(c, top, bottom):
     m29 = sq.msg(1, 2, '29. approve(protocolNum = "8/26", protocolDate = "25.06.2026")')
     m30 = sq.msg(2, 3, '30. finalize(protocol) → итоговый хэш')
     m31 = sq.msg(3, 2, '31. finalHash = 8b41… (SHA-256)', kind='return', dy=48)
-    sq.act(3, m30 - 24, m31 - 8)
+    sq.act(3, m30 - 24, m31)
     m32 = sq.msg(2, 1, '32. status = APPROVED, реквизиты протокола сохранены', kind='return')
     m33 = sq.msg(1, 0, '33. Уведомление: учебный план утверждён', kind='return')
-    sq.act(1, m1 - 24, m32 - 6)
-    sq.act(2, act_ctl, m32 - 6)
+    sq.act(1, m1 - 24, m33)
+    sq.act(2, act_ctl, m32)
     return sq
 
 
